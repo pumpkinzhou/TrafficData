@@ -238,6 +238,9 @@ class Graph(object):
                 nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
                 if nei.node_id in uf.father:
                     uf.union(node.node_id, nei.node_id)
+                    node.subgraph = uf.find(node.node_id)
+                    nei.subgraph =  uf.find(nei.node_id)
+
         # print(uf.father.keys())
         return uf.count
 
