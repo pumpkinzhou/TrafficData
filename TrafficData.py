@@ -238,11 +238,30 @@ class Graph(object):
                 nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
                 if nei.node_id in uf.father:
                     uf.union(node.node_id, nei.node_id)
-                    node.subgraph = uf.find(node.node_id)
-                    nei.subgraph =  uf.find(nei.node_id)
+
+        for node in self.nodes:
+            node.subgraph = uf.find(node.node_id)
 
         # print(uf.father.keys())
         return uf.count
+
+    def plot_graph(self):
+        for e in self.edges:
+            plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+        # if link['avgSpeed'] is None:
+        #     link['avgSpeed'] = 30
+        # if plotgraph:
+        #     link['avgSpeed'] = float(link['avgSpeed'])
+        #
+        #     if link['avgSpeed'] >= 40:
+        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='g')
+        #     elif 30 <= link['avgSpeed'] < 40:
+        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='y')
+        #     else:
+        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='r')
+        # i += 1
+        # if i % 10000 == 0:
+        #     plt.show()
 
 
 ''' main() '''
@@ -254,12 +273,13 @@ def read_json(file):
     print('file not open!')
     return None
 
-def build_graph(data, plotgraph = 0):
+def build_graph(data):
     graph = Graph()
     # # pprint(data)
     # data['16830481']
     # g.insert_node('16830481', '0', '1')
     # g.insert_edge('16830481', '41770395', '41770383', '4236545', '-7102811','4236576', '-7102735','71.45', 15.44)
+    i = 0
     for link_id in data:
         '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed)'''
         link = data[link_id]
@@ -268,20 +288,9 @@ def build_graph(data, plotgraph = 0):
         LON = link['LON'].split(',')
         LON[1] = str(int(LON[0]) + int(LON[1]))
         graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
-                      link['LINK_LENGTH'], link['avgSpeed'])
-        # plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o')
-        if link['avgSpeed'] is None:
-            link['avgSpeed'] = 30
-        if plotgraph:
-            link['avgSpeed'] = float(link['avgSpeed'])
-
-            if link['avgSpeed'] >= 40:
-                plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='g')
-            elif 30 <= link['avgSpeed'] < 40:
-                plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='y')
-            else:
-                plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='r')
-            plt.show()
+                      link['LINK_LENGTH'], 40)
+        # graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
+        #               link['LINK_LENGTH'], link['avgSpeed'])
     return graph
 
 def save_graph(filename, graph):
@@ -326,9 +335,10 @@ def random_walk(s, level):
                 break
     return path, dist
 
-data = read_json('TrafficData\TrafficData_test.json')
-g = build_graph(data, 1)  # put 0 to save time if don't want to plot the graph
-print(g.num_of_subgraphs())
+# data = read_json('TrafficData\TrafficData_test2.json')
+data = read_json('TrafficData\\BostonData\\NetworkData.json')
+g = build_graph(data)
+# print(g.num_of_subgraphs())
 # save_graph('CODES\TrafficGraph.pckl', g)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 # path, path_length = random_walk('41770342', 50)
