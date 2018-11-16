@@ -3,6 +3,7 @@ import pickle
 import sys
 import pprint
 import matplotlib.pyplot as plt
+import numpy as np
 from heapq import heapify, heappush, heappop
 from collections import defaultdict
 
@@ -231,7 +232,6 @@ class Graph(object):
 
     def num_of_subgraphs(self):
         uf = UnionFind()
-
         for node in self.nodes:
             uf.init_matrix(node.node_id)
             for e in node.edges:
@@ -245,23 +245,53 @@ class Graph(object):
         # print(uf.father.keys())
         return uf.count
 
-    def plot_graph(self):
-        for e in self.edges:
-            plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
-        # if link['avgSpeed'] is None:
-        #     link['avgSpeed'] = 30
-        # if plotgraph:
-        #     link['avgSpeed'] = float(link['avgSpeed'])
-        #
-        #     if link['avgSpeed'] >= 40:
-        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='g')
-        #     elif 30 <= link['avgSpeed'] < 40:
-        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='y')
-        #     else:
-        #         plt.plot([int(num) for num in LON], [int(num) for num in LAT], marker='o', color='r')
-        # i += 1
-        # if i % 10000 == 0:
-        #     plt.show()
+    def plot_graph(self, traffic_color= 0):
+        """ Plot all links in the graph"""
+        if traffic_color == 0:
+            for e in self.edges:
+                plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+        if traffic_color == 1:
+            i = 0
+            for e in self.edges:
+                if e.average_speed is None:
+                    e.average_speed= 30
+                e.average_speed = float(e.average_speed)
+                if e.average_speed >= 40:
+                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='g')
+                elif 30 <= e.average_speed < 40:
+                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='y')
+                else:
+                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='r')
+                i += 1
+                if i % 1000 == 0:
+                    plt.show()
+
+    def plot_subgraphs(self, n):
+        """ scatter plot: nodes that belong to the n largest disconnected subgraphs"""
+        numofSubgraph = self.num_of_subgraphs()
+        color = np.random.rand(numofSubgraph)
+        subgraph_dict = defaultdict(int)
+        for node in self.nodes:
+            subgraph_dict[node.subgraph] += 1
+
+        subgraph_ids = [item[0] for item in sorted(subgraph_dict.items(), key=lambda v: v[1], reverse=True)]
+        subgraph_ids = subgraph_ids[:n]
+
+        color_dic = {}
+        for i, subgraph in enumerate(subgraph_dict):
+            color_dic[subgraph]  = color[i]
+
+        x, y, colors = [], [], []
+        for node in self.nodes:
+            if node.subgraph in subgraph_ids:
+                x.append(int(node.LON))
+                y.append(int(node.LAT))
+                colors.append(color_dic[node.subgraph])
+
+        plt.figure()
+        plt.scatter(x, y, c = colors)
+        plt.show()
+
 
 
 ''' main() '''
@@ -335,11 +365,16 @@ def random_walk(s, level):
                 break
     return path, dist
 
-# data = read_json('TrafficData\TrafficData_test2.json')
-data = read_json('TrafficData\\BostonData\\NetworkData.json')
+
+
+data = read_json('TrafficData\TrafficData_test2.json')
+# data = read_json('TrafficData\\BostonData\\NetworkData.json')
+# data = read_json('TrafficData\\BostonData\\TrafficPatternData.json')
 g = build_graph(data)
-# print(g.num_of_subgraphs())
-# save_graph('CODES\TrafficGraph.pckl', g)
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+g.plot_subgraphs(g.num_of_subgraphs())
+
+# save_graph('CODES\NetworkData.pckl', g)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 # path, path_length = random_walk('41770342', 50)
 # goal_node_id = path[-1]
