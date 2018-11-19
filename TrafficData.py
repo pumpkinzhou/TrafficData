@@ -40,6 +40,10 @@ class Node(object):
         self.subgraph = 0
         self.visited = False
 
+    def __repr__(self):
+        return '{self.__class__.__name__}: node_id = {self.node_id}'.format(self = self)
+
+
 
 class Edge(object):
     def __init__(self, edge_id, node_from, node_to, length, average_speed):
@@ -49,12 +53,18 @@ class Edge(object):
         self.length = length
         self.average_speed = average_speed
 
+    def __repr__(self):
+        return '{self.__class__.__name__}: edge_id = {self.edge_id}'.format(self = self)
+
 
 class Graph(object):
     def __init__(self, nodes=None, edges=None):
         self.nodes = nodes or []
         self.edges = edges or []
         self._node_map = {}
+
+    def __repr__(self):
+        return '{self.__class__.__name__}'.format(self=self)
 
     def insert_node(self, new_node_id, LAT, LON):
         "Insert a new node with value new_node_val"
@@ -372,7 +382,7 @@ data = read_json('TrafficData\TrafficData_test2.json')
 # data = read_json('TrafficData\\BostonData\\TrafficPatternData.json')
 g = build_graph(data)
 print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-g.plot_subgraphs(g.num_of_subgraphs())
+# g.plot_subgraphs(g.num_of_subgraphs())
 
 # save_graph('CODES\NetworkData.pckl', g)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
