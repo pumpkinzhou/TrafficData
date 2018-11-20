@@ -41,9 +41,10 @@ class Node(object):
         self.visited = False
 
     def __repr__(self):
+        return '{self.__class__.__name__}'.format(self = self)
+
+    def __str__(self):
         return '{self.__class__.__name__}: node_id = {self.node_id}'.format(self = self)
-
-
 
 class Edge(object):
     def __init__(self, edge_id, node_from, node_to, length, average_speed):
@@ -54,26 +55,26 @@ class Edge(object):
         self.average_speed = average_speed
 
     def __repr__(self):
-        return '{self.__class__.__name__}: edge_id = {self.edge_id}'.format(self = self)
+        return '{self.__class__.__name__}'.format(self = self)
 
+    def __str__(self):
+        return '{self.__class__.__name__}: edge_id = {self.edge_id}'.format(self=self)
 
 class Graph(object):
     def __init__(self, nodes=None, edges=None):
         self.nodes = nodes or []
         self.edges = edges or []
         self._node_map = {}
+        self._edge_map = {}
 
     def __repr__(self):
         return '{self.__class__.__name__}'.format(self=self)
 
     def insert_node(self, new_node_id, LAT, LON):
         "Insert a new node with value new_node_val"
-        for node in self.nodes:
-            if node.node_id == new_node_id:
-                print('insert an existing node!')
-                node.LAT = LAT
-                node.LON = LON
-                return node
+        if new_node_id in self._node_map:
+            print('insert an existing node!')
+            return self._node_map[new_node_id]
         new_node = Node(new_node_id, LAT, LON)
         self.nodes.append(new_node)
         self._node_map[new_node_id] = new_node
@@ -82,26 +83,24 @@ class Graph(object):
     def insert_edge(self, edge_id, node_from_id, LAT_from, LON_from,
                     node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed):
         "Insert a new edge, creating new nodes if necessary"
-        nodes = {node_from_id: None, node_to_id: None}
-        for node in self.nodes:
-            if node.node_id in nodes:
-                nodes[node.node_id] = node
-                if all(nodes.values()):
-                    break
-
-        nodes[node_from_id] = nodes[node_from_id] or self.insert_node(node_from_id, LAT_from, LON_from)
-        nodes[node_to_id] = nodes[node_to_id] or self.insert_node(node_to_id, LAT_to, LON_to)
-
-        node_from = nodes[node_from_id]
-        node_to = nodes[node_to_id]
+        if edge_id in self._edge_map:
+            print("insert an existing edge!")
+            return
+        node_from = self._node_map.get(node_from_id) or self.insert_node(node_from_id, LAT_from, LON_from)
+        node_to = self._node_map.get(node_to_id) or self.insert_node(node_to_id, LAT_to, LON_to)
         new_edge = Edge(edge_id, node_from, node_to, new_edge_length, new_average_speed)
         node_from.edges.append(new_edge)
         node_to.edges.append(new_edge)
         self.edges.append(new_edge)
+        self._edge_map[edge_id] = new_edge
 
     def find_node(self, node_id):
         "Return the node with value node_number or None"
         return self._node_map.get(node_id)
+
+    def find_edge(self, edge_id):
+        "Return the node with value node_number or None"
+        return self._edge_map.get(edge_id)
 
     def get_edge_list(self):
         """Return a list of triples that looks like this:
@@ -303,35 +302,15 @@ class Graph(object):
         plt.show()
 
 
-
 ''' main() '''
 def read_json(file):
-    with open(file, 'r') as data_file:
-        data = json.load(data_file)
-        data_file.close()
+    with open(file, 'r') as fp:
+        data = json.load(fp)
+        fp.close()
         return data
     print('file not open!')
     return None
 
-def build_graph(data):
-    graph = Graph()
-    # # pprint(data)
-    # data['16830481']
-    # g.insert_node('16830481', '0', '1')
-    # g.insert_edge('16830481', '41770395', '41770383', '4236545', '-7102811','4236576', '-7102735','71.45', 15.44)
-    i = 0
-    for link_id in data:
-        '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed)'''
-        link = data[link_id]
-        LAT = link['LAT'].split(',')
-        LAT[1] = str(int(LAT[0]) + int(LAT[1]))
-        LON = link['LON'].split(',')
-        LON[1] = str(int(LON[0]) + int(LON[1]))
-        graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
-                      link['LINK_LENGTH'], 40)
-        # graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
-        #               link['LINK_LENGTH'], link['avgSpeed'])
-    return graph
 
 def save_graph(filename, graph):
     # print (sys.getrecursionlimit())  # default is 1000
@@ -376,13 +355,78 @@ def random_walk(s, level):
     return path, dist
 
 
+from ast import literal_eval
+def read_json2(file):
+    with open(file) as fp:
+        mainlist = [literal_eval(line) for line in fp]
+        fp.close()
+        raw_data = mainlist[0] if mainlist else None #data processing
+        d = {}
+        for item in raw_data:
+            d[item['LINK_ID']] = item
+        return d
+    print('file not open!')
+    return None
 
-data = read_json('TrafficData\TrafficData_test2.json')
-# data = read_json('TrafficData\\BostonData\\NetworkData.json')
-# data = read_json('TrafficData\\BostonData\\TrafficPatternData.json')
-g = build_graph(data)
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+def add_edges(graph, data):
+    for link_id in data:
+        '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed)'''
+        link = data[link_id]
+        LAT = link['LAT'].split(',')
+        LAT[1] = str(int(LAT[0]) + int(LAT[1]))
+        LON = link['LON'].split(',')
+        LON[1] = str(int(LON[0]) + int(LON[1]))
+        graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1],
+                          LON[1],
+                          link['LINK_LENGTH'], 40)
+        # graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
+        #               link['LINK_LENGTH'], link['avgSpeed'])
+
+
+g = Graph()
+# data = read_json('TrafficData\TrafficData_test.json')
+# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+#
+# new_data = read_json('TrafficData\\data\\TrafficData_test2.json')
+# add_new_edges(g, new_data)
+# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+#
 # g.plot_subgraphs(g.num_of_subgraphs())
+
+
+data = read_json('TrafficData\\data\\NetworkData.json')
+add_edges(g, data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+# data = read_json('TrafficData\\BostonData\\TrafficPatternData.json')
+# data = read_json('TrafficData\\data\\NetworkData.json')
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\ArsenalBridge.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\BridgeStreet.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\BUBridge.json')
+add_edges(g, new_data)
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\GelenStreetBridge.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\HarvardBridge.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\NBeaconBridge.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\WAveBridge.json')
+add_edges(g, new_data)
+print("# of edges: ", len(g.edges))
+print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+g.plot_subgraphs(g.num_of_subgraphs())
 
 # save_graph('CODES\NetworkData.pckl', g)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
