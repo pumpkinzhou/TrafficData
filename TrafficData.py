@@ -267,8 +267,12 @@ class Graph(object):
         lines = []
         if not speed_color:
             for e in self.edges:
-                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
+                              (float(e.node_to.LON), float(e.node_to.LAT))])
                 # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+                # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
+                #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+                # plt.show()
             line_segments = mc.LineCollection(lines)
             fig, ax = plt.subplots()
             ax.add_collection(line_segments)
@@ -296,7 +300,7 @@ class Graph(object):
 
     def plot_subgraphs(self, n):
         """ scatter plot: nodes that belong to the n largest disconnected subgraphs"""
-        colors= np.random.rand(n)
+        colors= np.random.rand(4, n)
 
         subgraph_dict = defaultdict(int)
         for node in self.nodes:
@@ -307,18 +311,32 @@ class Graph(object):
 
         color_dic = {}
         for i, subgraph in enumerate(subgraph_dict):
-            color_dic[subgraph]  = colors[i]
+            color_dic[subgraph]  = colors[:,i]
 
-        x, y, color = [], [], []
-        for node in self.nodes:
-            if node.subgraph in subgraph_ids:
-                x.append(int(node.LON))
-                y.append(int(node.LAT))
-                color.append(color_dic[node.subgraph])
+        # x, y, color = [], [], []
+        # for node in self.nodes:
+        #     if node.subgraph in subgraph_ids:
+        #         x.append(int(node.LON))
+        #         y.append(int(node.LAT))
+        #         color.append(color_dic[node.subgraph])
+        # plt.figure()
+        # plt.scatter(x, y, c = color)
+        # plt.show()
 
-        plt.figure()
-        plt.scatter(x, y, c = color)
-        plt.show()
+        lines = []
+        c = []
+        for e in self.edges:
+            if e.node_from.subgraph in subgraph_ids:
+                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
+                              (float(e.node_to.LON), float(e.node_to.LAT))])
+                c.append(color_dic[e.node_from.subgraph])
+
+        line_segments = mc.LineCollection(lines, colors=c)
+        fig, ax = plt.subplots()
+        ax.add_collection(line_segments)
+        ax.autoscale()
+
+
 
 
 
@@ -463,14 +481,14 @@ for f in data_files:
 TrafficPatternData = read_json('TrafficData\\data\\BostonData\\TrafficPatternData.json')
 TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern_table.json')
 
-add_speed_info(g, TrafficPatternData, TrafficPatternTable)
+# add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 
-g.plot_graph()
+# g.plot_graph()
 
 
 ''' graph analysis'''
 print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-# g.plot_subgraphs(g.num_of_subgraphs())
+g.plot_subgraphs(g.num_of_subgraphs())
 # g.plot_graph()  # ATTENTION: IT TAKES VERY LONG TIME!
 
 
