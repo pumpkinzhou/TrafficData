@@ -1,4 +1,6 @@
 import json
+import glob
+from ast import literal_eval
 import pickle
 import sys
 import pprint
@@ -31,6 +33,7 @@ class UnionFind:
             self.father[fatherA] = fatherB
             self.count -= 1
 
+
 class Node(object):
     def __init__(self, node_id, LAT ='', LON = ''):
         self.node_id = node_id
@@ -46,19 +49,21 @@ class Node(object):
     def __str__(self):
         return '{self.__class__.__name__}: node_id = {self.node_id}'.format(self = self)
 
+
 class Edge(object):
-    def __init__(self, edge_id, node_from, node_to, length, average_speed):
+    def __init__(self, edge_id, node_from, node_to, length):
         self.edge_id = edge_id
         self.node_from = node_from
         self.node_to = node_to
         self.length = length
-        self.average_speed = average_speed
+        self.speed = defaultdict(dict)     # speed dictionary {}
 
     def __repr__(self):
         return '{self.__class__.__name__}'.format(self = self)
 
     def __str__(self):
         return '{self.__class__.__name__}: edge_id = {self.edge_id}'.format(self=self)
+
 
 class Graph(object):
     def __init__(self, nodes=None, edges=None):
@@ -80,23 +85,27 @@ class Graph(object):
         self._node_map[new_node_id] = new_node
         return new_node
 
+    def find_node(self, node_id):
+        "Return the node with value node_number or None"
+        return self._node_map.get(node_id)
+
+    def _clear_visited(self):
+        for node in self.nodes:
+            node.visited = False
+
     def insert_edge(self, edge_id, node_from_id, LAT_from, LON_from,
-                    node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed):
+                    node_to_id, LAT_to, LON_to, new_edge_length):
         "Insert a new edge, creating new nodes if necessary"
         if edge_id in self._edge_map:
             print("insert an existing edge!")
             return
         node_from = self._node_map.get(node_from_id) or self.insert_node(node_from_id, LAT_from, LON_from)
         node_to = self._node_map.get(node_to_id) or self.insert_node(node_to_id, LAT_to, LON_to)
-        new_edge = Edge(edge_id, node_from, node_to, new_edge_length, new_average_speed)
+        new_edge = Edge(edge_id, node_from, node_to, new_edge_length)
         node_from.edges.append(new_edge)
         node_to.edges.append(new_edge)
         self.edges.append(new_edge)
         self._edge_map[edge_id] = new_edge
-
-    def find_node(self, node_id):
-        "Return the node with value node_number or None"
-        return self._node_map.get(node_id)
 
     def find_edge(self, edge_id):
         "Return the node with value node_number or None"
@@ -104,13 +113,11 @@ class Graph(object):
 
     def get_edge_list(self):
         """Return a list of triples that looks like this:
-        (edge_id, node_from, node_to, length, average_speed)"""
-        return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.average_speed)
-                for e in self.edges]
+        (edge_id, node_from, node_to, length, speed)"""
+        return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.speed) for e in self.edges]
 
-    def _clear_visited(self):
-        for node in self.nodes:
-            node.visited = False
+    def add_edge_speed(self):
+        pass
 
     def find_path(self, start_node_id, end_node_id, path = []):
         """find path use dfs. The output is a feasible path or None.
@@ -218,12 +225,15 @@ class Graph(object):
 
             for e in node.edges:
                 nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
-                if e.average_speed is None:
-                    e.average_speed = 30
-                elif isinstance(e.average_speed, str):
-                    e.average_speed = float(e.average_speed)
+                if e.speed['AVG_SPEED'] is None:
+                    speed = 30
+                elif e.speed['AVG_SPEED'] == -1:
+                    speed = 30
+                else:
+                    speed = e.speed['AVG_SPEED']
                 # new_obj = dist[node.node_id]['val'] + float(e.length)  # shortest length
-                new_obj = dist[node.node_id]['val'] + float(e.length) / (e.average_speed * 1.6 * 1000 / 3600)   #minimal time unit: seconds
+
+                new_obj = dist[node.node_id]['val'] + float(e.length) / (speed * 1.6 * 1000 / 3600)   #minimal time unit: seconds
 
                 if nei.node_id not in dist:
                     dist[nei.node_id]['val'] = new_obj
@@ -256,29 +266,37 @@ class Graph(object):
 
     def plot_graph(self, traffic_color= 0):
         """ Plot all links in the graph"""
+        i = 0
         if traffic_color == 0:
             for e in self.edges:
                 plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+                i += 1
+                if i % 1000 == 0:
+                    print(i)
+                    plt.show()
         if traffic_color == 1:
-            i = 0
             for e in self.edges:
-                if e.average_speed is None:
-                    e.average_speed= 30
-                e.average_speed = float(e.average_speed)
-                if e.average_speed >= 40:
+                speed = e.speed['AVG_SPEED']
+                if speed is None:
+                    speed= 30
+                speed = float(speed)
+                if speed >= 40:
                     plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='g')
-                elif 30 <= e.average_speed < 40:
+                elif 30 <= speed < 40:
                     plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='y')
                 else:
                     plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='r')
                 i += 1
                 if i % 1000 == 0:
+                    print(i)
                     plt.show()
+        return
+
 
     def plot_subgraphs(self, n):
         """ scatter plot: nodes that belong to the n largest disconnected subgraphs"""
-        numofSubgraph = self.num_of_subgraphs()
-        color = np.random.rand(numofSubgraph)
+        colors= np.random.rand(n)
+
         subgraph_dict = defaultdict(int)
         for node in self.nodes:
             subgraph_dict[node.subgraph] += 1
@@ -288,18 +306,19 @@ class Graph(object):
 
         color_dic = {}
         for i, subgraph in enumerate(subgraph_dict):
-            color_dic[subgraph]  = color[i]
+            color_dic[subgraph]  = colors[i]
 
-        x, y, colors = [], [], []
+        x, y, color = [], [], []
         for node in self.nodes:
             if node.subgraph in subgraph_ids:
                 x.append(int(node.LON))
                 y.append(int(node.LAT))
-                colors.append(color_dic[node.subgraph])
+                color.append(color_dic[node.subgraph])
 
         plt.figure()
-        plt.scatter(x, y, c = colors)
+        plt.scatter(x, y, c = color)
         plt.show()
+
 
 
 ''' main() '''
@@ -312,6 +331,73 @@ def read_json(file):
     return None
 
 
+def read_json2(file):
+    with open(file) as fp:
+        mainlist = [literal_eval(line) for line in fp]
+        fp.close()
+        raw_data = mainlist[0] if mainlist else None     #data processing
+        d = {}
+        for item in raw_data:
+            d[item['LINK_ID']] = item
+        return d
+    print('file not open!')
+    return None
+
+
+def read_json3(file):
+    with open(file) as fp:
+        mainlist = [literal_eval(line) for line in fp]
+        fp.close()
+        raw_data = mainlist[0] if mainlist else None  #data processing
+        d = {}
+        for item in raw_data:
+            d[item['PATTERN_ID']] = item
+        return d
+    print('file not open!')
+    return None
+
+
+def add_edges(graph, data):
+    for link_id in data:
+        '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length, new_speed)'''
+        link = data[link_id]
+        LAT = link['LAT'].split(',')
+        LAT[1] = str(int(LAT[0]) + int(LAT[1]))
+        LON = link['LON'].split(',')
+        LON[1] = str(int(LON[0]) + int(LON[1]))
+        graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1],
+                          LON[1], link['LINK_LENGTH'])
+
+
+def add_speed_info(graph, pattern_data, pattern_table):
+    for e in graph.edges:
+        e_traffic_pattern = pattern_data.get(e.edge_id, None)
+        if e_traffic_pattern:
+            e.speed['AVG_SPEED'] = float(e_traffic_pattern['AVG_SPEED'])
+            e.speed['FREE_FLOW_SPEED'] = float(e_traffic_pattern['FREE_FLOW_SPEED'])
+
+            if e_traffic_pattern['F_WEEKDAY']:
+                e.speed['F_WEEKDAY'] = e_traffic_pattern['F_WEEKDAY'].split(',')
+
+            if e_traffic_pattern['T_WEEKDAY']:
+                e.speed['T_WEEKDAY'] = e_traffic_pattern['T_WEEKDAY'].split(',')
+
+            if e.speed['F_WEEKDAY']:
+                for pattern_id in e.speed['F_WEEKDAY']:
+                    if pattern_id not in pattern_table:
+                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+                    else:
+                        e.speed['FS'] = pattern_table[pattern_id]['SPEED_VALUES']
+            if e.speed['T_WEEKDAY']:
+                for pattern_id in e.speed['T_WEEKDAY']:
+                    if pattern_id not in pattern_table:
+                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+                    else:
+                        e.speed['TS'] = pattern_table[pattern_id]['SPEED_VALUES']
+        else:
+            e.speed['AVG_SPEED'] = -1
+
+
 def save_graph(filename, graph):
     # print (sys.getrecursionlimit())  # default is 1000
     sys.setrecursionlimit(5000)
@@ -319,6 +405,7 @@ def save_graph(filename, graph):
     with open(filename, 'wb') as fp:
         pickle.dump(graph, fp, pickle.HIGHEST_PROTOCOL)
         fp.close()
+
 
 def load_graph(filename):
     with open(filename, 'rb') as fp:
@@ -328,6 +415,7 @@ def load_graph(filename):
     print('Graph not loaded!')
     return None
 
+
 def plot_path(path, colour = 'k'):
     if not path:
         print("Path is empty!")
@@ -336,6 +424,7 @@ def plot_path(path, colour = 'k'):
     ys = [int(g._node_map[node_id].LON) for node_id in path]
     # plt.figure()
     plt.plot(ys, xs, marker='o', color = colour)
+
 
 def random_walk(s, level):
     """random_walk.
@@ -355,78 +444,29 @@ def random_walk(s, level):
     return path, dist
 
 
-from ast import literal_eval
-def read_json2(file):
-    with open(file) as fp:
-        mainlist = [literal_eval(line) for line in fp]
-        fp.close()
-        raw_data = mainlist[0] if mainlist else None #data processing
-        d = {}
-        for item in raw_data:
-            d[item['LINK_ID']] = item
-        return d
-    print('file not open!')
-    return None
-
-def add_edges(graph, data):
-    for link_id in data:
-        '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length, new_average_speed)'''
-        link = data[link_id]
-        LAT = link['LAT'].split(',')
-        LAT[1] = str(int(LAT[0]) + int(LAT[1]))
-        LON = link['LON'].split(',')
-        LON[1] = str(int(LON[0]) + int(LON[1]))
-        graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1],
-                          LON[1],
-                          link['LINK_LENGTH'], 40)
-        # graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1], LON[1],
-        #               link['LINK_LENGTH'], link['avgSpeed'])
-
-
 g = Graph()
-# data = read_json('TrafficData\TrafficData_test.json')
+# data = read_json('TrafficData\TrafficData_test.json')  #for test purpose only
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-#
-# new_data = read_json('TrafficData\\data\\TrafficData_test2.json')
-# add_new_edges(g, new_data)
-# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-#
-# g.plot_subgraphs(g.num_of_subgraphs())
-
-
-data = read_json('TrafficData\\data\\NetworkData.json')
+''' load data'''
+data = read_json('TrafficData\\data\\NetworkData.json')     # load main data setv
 add_edges(g, data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-# data = read_json('TrafficData\\BostonData\\TrafficPatternData.json')
-# data = read_json('TrafficData\\data\\NetworkData.json')
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\ArsenalBridge.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\BridgeStreet.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\BUBridge.json')
-add_edges(g, new_data)
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\GelenStreetBridge.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\HarvardBridge.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\NBeaconBridge.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-new_data = read_json2('TrafficData\\data\\heremapsnewdataset\\WAveBridge.json')
-add_edges(g, new_data)
-print("# of edges: ", len(g.edges))
+# add data from different zoom levels (zoom12 matters most)
+data_files = glob.glob('TrafficData\\data\\Boston Data_Diff_Zooms\\NetworkData_zoom*.json')
+for f in data_files:
+    add_edges(g, read_json(f))
+
+TrafficPatternData = read_json('TrafficData\\data\\BostonData\\TrafficPatternData.json')
+TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern_table.json')
+
+add_speed_info(g, TrafficPatternData, TrafficPatternTable)
+
+
+
+''' graph analysis'''
 print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 g.plot_subgraphs(g.num_of_subgraphs())
+# g.plot_graph()  # ATTENTION: IT TAKES VERY LONG TIME!
+
 
 # save_graph('CODES\NetworkData.pckl', g)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
