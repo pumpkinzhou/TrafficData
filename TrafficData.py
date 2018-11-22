@@ -5,6 +5,7 @@ import pickle
 import sys
 import pprint
 import matplotlib.pyplot as plt
+import matplotlib.collections as mc
 import numpy as np
 from heapq import heapify, heappush, heappop
 from collections import defaultdict
@@ -115,9 +116,6 @@ class Graph(object):
         """Return a list of triples that looks like this:
         (edge_id, node_from, node_to, length, speed)"""
         return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.speed) for e in self.edges]
-
-    def add_edge_speed(self):
-        pass
 
     def find_path(self, start_node_id, end_node_id, path = []):
         """find path use dfs. The output is a feasible path or None.
@@ -264,17 +262,20 @@ class Graph(object):
         # print(uf.father.keys())
         return uf.count
 
-    def plot_graph(self, traffic_color= 0):
+    def plot_graph(self, speed_color=False):
         """ Plot all links in the graph"""
-        i = 0
-        if traffic_color == 0:
+        lines = []
+        if not speed_color:
             for e in self.edges:
-                plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
-                i += 1
-                if i % 1000 == 0:
-                    print(i)
-                    plt.show()
-        if traffic_color == 1:
+                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+                # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+            line_segments = mc.LineCollection(lines)
+            fig, ax = plt.subplots()
+            ax.add_collection(line_segments)
+            ax.autoscale()
+
+        if speed_color:
+            i = 0
             for e in self.edges:
                 speed = e.speed['AVG_SPEED']
                 if speed is None:
@@ -371,31 +372,35 @@ def add_edges(graph, data):
 
 def add_speed_info(graph, pattern_data, pattern_table):
     for e in graph.edges:
-        e_traffic_pattern = pattern_data.get(e.edge_id, None)
-        if e_traffic_pattern:
-            e.speed['AVG_SPEED'] = float(e_traffic_pattern['AVG_SPEED'])
-            e.speed['FREE_FLOW_SPEED'] = float(e_traffic_pattern['FREE_FLOW_SPEED'])
+        traffic_pattern = pattern_data.get(e.edge_id, None)
+        if traffic_pattern:
+            e.speed['AVG_SPEED'] = float(traffic_pattern['AVG_SPEED'])
+            e.speed['FREE_FLOW_SPEED'] = float(traffic_pattern['FREE_FLOW_SPEED'])
 
-            if e_traffic_pattern['F_WEEKDAY']:
-                e.speed['F_WEEKDAY'] = e_traffic_pattern['F_WEEKDAY'].split(',')
+            if traffic_pattern['F_WEEKDAY']:
+                e.speed['F_WEEKDAY'] = traffic_pattern['F_WEEKDAY'].split(',')
 
-            if e_traffic_pattern['T_WEEKDAY']:
-                e.speed['T_WEEKDAY'] = e_traffic_pattern['T_WEEKDAY'].split(',')
+            if traffic_pattern['T_WEEKDAY']:
+                e.speed['T_WEEKDAY'] = traffic_pattern['T_WEEKDAY'].split(',')
 
             if e.speed['F_WEEKDAY']:
                 for pattern_id in e.speed['F_WEEKDAY']:
-                    if pattern_id not in pattern_table:
-                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+                    if pattern_id in pattern_table:
+                        e.speed['F_SPEED'] = list(map(float, pattern_table[pattern_id]['SPEED_VALUES'].split(',')))
+                        # e.speed['F_SPEED'] = pattern_table[pattern_id]['SPEED_VALUES'].split(',')
                     else:
-                        e.speed['FS'] = pattern_table[pattern_id]['SPEED_VALUES']
+                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+
             if e.speed['T_WEEKDAY']:
                 for pattern_id in e.speed['T_WEEKDAY']:
-                    if pattern_id not in pattern_table:
-                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+                    if pattern_id in pattern_table:
+                        e.speed['T_SPEED'] = [float(x) for x in pattern_table[pattern_id]['SPEED_VALUES'].split(',')]
+                        # e.speed['T_SPEED'] = pattern_table[pattern_id]['SPEED_VALUES'].split(',')
                     else:
-                        e.speed['TS'] = pattern_table[pattern_id]['SPEED_VALUES']
+                        print('pattern_id {} not found in pattern_table'.format(pattern_id))
+
         else:
-            e.speed['AVG_SPEED'] = -1
+            e.speed['AVG_SPEED'] = -1    # -1 indicates e.edge_id not found pattern_data
 
 
 def save_graph(filename, graph):
@@ -460,11 +465,12 @@ TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern
 
 add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 
+g.plot_graph()
 
 
 ''' graph analysis'''
 print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-g.plot_subgraphs(g.num_of_subgraphs())
+# g.plot_subgraphs(g.num_of_subgraphs())
 # g.plot_graph()  # ATTENTION: IT TAKES VERY LONG TIME!
 
 
