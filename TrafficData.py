@@ -262,45 +262,49 @@ class Graph(object):
         # print(uf.father.keys())
         return uf.count
 
-    def plot_graph(self, speed_color=False):
+    def plot_graph(self, speed_color=False, day = 1, time = 36):
         """ Plot all links in the graph"""
         lines = []
-        if not speed_color:
-            for e in self.edges:
-                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
-                              (float(e.node_to.LON), float(e.node_to.LAT))])
-                # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
-                # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
-                #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
-                # plt.show()
-            line_segments = mc.LineCollection(lines)
-            fig, ax = plt.subplots()
-            ax.add_collection(line_segments)
-            ax.autoscale()
+        for e in self.edges:
+            lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
+                          (float(e.node_to.LON), float(e.node_to.LAT))])
 
-        if speed_color:
-            i = 0
+        # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+        # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
+        #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+        # plt.show()
+        if not speed_color:
+            line_segments = mc.LineCollection(lines)
+        else:
+            c = []
             for e in self.edges:
-                speed = e.speed['AVG_SPEED']
-                if speed is None:
-                    speed= 30
-                speed = float(speed)
-                if speed >= 40:
-                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='g')
-                elif 30 <= speed < 40:
-                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='y')
+                if e.speed['FREE_FLOW_SPEED']:
+                    if not (e.speed['F_SPEED'] or e.speed['T_SPEED']):
+                        print (e.speed['F_SPEED'], e.speed['T_SPEED'])
+                        print(e.edge_id)
+                    speedFactor = (e.speed['F_SPEED'] or e.speed['T_SPEED'])[day][time]/e.speed['FREE_FLOW_SPEED']
                 else:
-                    plt.plot([float(e.node_from.LON), float(e.node_to.LON)], [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o', color='r')
-                i += 1
-                if i % 1000 == 0:
-                    print(i)
-                    plt.show()
+                    speedFactor =  1
+
+                if speedFactor < 0.5:
+                    c.append('r')
+                elif 0.5 <= speedFactor < 0.75:
+                    c.append('y')
+                # elif 0.75 <= speedFactor < 1:
+                #     c.append('g')
+                else:
+                    # c.append('k')
+                    c.append('g')
+            line_segments = mc.LineCollection(lines, colors=c)
+
+        fig, ax = plt.subplots()
+        ax.add_collection(line_segments)
+        ax.autoscale()
         return
 
-
     def plot_subgraphs(self, n):
-        """ scatter plot: nodes that belong to the n largest disconnected subgraphs"""
-        colors= np.random.rand(4, n)
+        """ plot: colored n largest disconnected subgraphs"""
+        colors= np.concatenate((np.random.rand(3, n), np.ones((1,n))))
 
         subgraph_dict = defaultdict(int)
         for node in self.nodes:
@@ -312,16 +316,6 @@ class Graph(object):
         color_dic = {}
         for i, subgraph in enumerate(subgraph_dict):
             color_dic[subgraph]  = colors[:,i]
-
-        # x, y, color = [], [], []
-        # for node in self.nodes:
-        #     if node.subgraph in subgraph_ids:
-        #         x.append(int(node.LON))
-        #         y.append(int(node.LAT))
-        #         color.append(color_dic[node.subgraph])
-        # plt.figure()
-        # plt.scatter(x, y, c = color)
-        # plt.show()
 
         lines = []
         c = []
@@ -336,7 +330,15 @@ class Graph(object):
         ax.add_collection(line_segments)
         ax.autoscale()
 
-
+        # x, y, color = [], [], []
+        # for node in self.nodes:
+        #     if node.subgraph in subgraph_ids:
+        #         x.append(int(node.LON))
+        #         y.append(int(node.LAT))
+        #         color.append(color_dic[node.subgraph])
+        # plt.figure()
+        # plt.scatter(x, y, c = color)
+        # plt.show()
 
 
 
@@ -401,10 +403,11 @@ def add_speed_info(graph, pattern_data, pattern_table):
             if traffic_pattern['T_WEEKDAY']:
                 e.speed['T_WEEKDAY'] = traffic_pattern['T_WEEKDAY'].split(',')
 
+            e.speed['F_SPEED'], e.speed['T_SPEED'] = [], []
             if e.speed['F_WEEKDAY']:
                 for pattern_id in e.speed['F_WEEKDAY']:
                     if pattern_id in pattern_table:
-                        e.speed['F_SPEED'] = list(map(float, pattern_table[pattern_id]['SPEED_VALUES'].split(',')))
+                        e.speed['F_SPEED'].append(list(map(float, pattern_table[pattern_id]['SPEED_VALUES'].split(','))))
                         # e.speed['F_SPEED'] = pattern_table[pattern_id]['SPEED_VALUES'].split(',')
                     else:
                         print('pattern_id {} not found in pattern_table'.format(pattern_id))
@@ -412,13 +415,13 @@ def add_speed_info(graph, pattern_data, pattern_table):
             if e.speed['T_WEEKDAY']:
                 for pattern_id in e.speed['T_WEEKDAY']:
                     if pattern_id in pattern_table:
-                        e.speed['T_SPEED'] = [float(x) for x in pattern_table[pattern_id]['SPEED_VALUES'].split(',')]
+                        e.speed['T_SPEED'].append(list(map(float, pattern_table[pattern_id]['SPEED_VALUES'].split(','))))
                         # e.speed['T_SPEED'] = pattern_table[pattern_id]['SPEED_VALUES'].split(',')
                     else:
                         print('pattern_id {} not found in pattern_table'.format(pattern_id))
 
         else:
-            e.speed['AVG_SPEED'] = -1    # -1 indicates e.edge_id not found pattern_data
+            e.speed['FREE_FLOW_SPEED'] = 0    # 0 indicates e.edge_id not found pattern_data
 
 
 def save_graph(filename, graph):
@@ -471,25 +474,27 @@ g = Graph()
 # data = read_json('TrafficData\TrafficData_test.json')  #for test purpose only
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 ''' load data'''
-data = read_json('TrafficData\\data\\NetworkData.json')     # load main data setv
+data = read_json('TrafficData\\data\\BostonData\\NetworkData.json')     # load main data setv
 add_edges(g, data)
 # add data from different zoom levels (zoom12 matters most)
-data_files = glob.glob('TrafficData\\data\\Boston Data_Diff_Zooms\\NetworkData_zoom*.json')
+data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms\\NetworkData_zoom*.json')
 for f in data_files:
     add_edges(g, read_json(f))
 
 TrafficPatternData = read_json('TrafficData\\data\\BostonData\\TrafficPatternData.json')
+data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms\\TrafficPatternData_zoom*.json')
+for f in data_files:
+    TrafficPatternData.update(read_json(f))
 TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern_table.json')
 
-# add_speed_info(g, TrafficPatternData, TrafficPatternTable)
-
-# g.plot_graph()
-
+add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 
 ''' graph analysis'''
-print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-g.plot_subgraphs(g.num_of_subgraphs())
-# g.plot_graph()  # ATTENTION: IT TAKES VERY LONG TIME!
+g.plot_graph(True, 1, 37)
+# g.plot_graph(True)
+# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+# g.plot_subgraphs(g.num_of_subgraphs())
+
 
 
 # save_graph('CODES\NetworkData.pckl', g)
