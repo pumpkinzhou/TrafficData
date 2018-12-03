@@ -326,7 +326,7 @@ class Graph(object):
                     print(e.edge_id, e.speed)
                 # new_obj = dist[node.node_id]['val'] + float(e.length)  # shortest length
 
-                new_obj = dist[node.node_id]['val'] + float(e.length) / (speed * 1.6 * 1000 / 3600)   #minimal time unit: seconds
+                new_obj = dist[node.node_id]['val'] + float(e.length) / (speed * 1000 / 3600)   #minimal time unit: seconds
 
                 if nei.node_id not in dist:
                     dist[nei.node_id]['val'] = new_obj
@@ -401,15 +401,15 @@ class Graph(object):
                     print('speed error, speed = ', speed)
 
                 if battery_level:
-                    if battery_level >= float(e.length) / mu_CD_Value[mode]:
-                        cost = Cele * float(e.length) / mu_CD_Value[mode]
-                        new_battery_level = battery_level - float(e.length) / mu_CD_Value[mode]
+                    if battery_level >= float(e.length)/1600 / mu_CD_Value[mode]:
+                        cost = Cele * float(e.length)/1600 / mu_CD_Value[mode]
+                        new_battery_level = battery_level - float(e.length)/1600 / mu_CD_Value[mode]
                     else:
                         cost = Cele * battery_level + \
-                               Cgas * (float(e.length) - mu_CD_Value[mode] * battery_level ) / mu_CS_Value[mode]
+                               Cgas * (float(e.length)/1600 - mu_CD_Value[mode] * battery_level ) / mu_CS_Value[mode]
                         new_battery_level = 0
                 else:
-                    cost = Cgas * float(e.length) / mu_CS_Value[mode]
+                    cost = Cgas * float(e.length)/1600 / mu_CS_Value[mode]
                     new_battery_level = 0
 
                 new_obj = dist[node.node_id]['val'] + cost

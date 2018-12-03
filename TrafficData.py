@@ -189,6 +189,10 @@ print(car.get_od_pair())
 dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
 plot_path(dijkstra_path, 'm')
 
+car.set_battery_level(2.0)
+dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
+plot_path(dijkstra_path, 'm')
+
 
 # bfs_path, bfs_dist = g.bfs('41770395', '41733133')
 # dijkstra_path, dijkstra_obj = g.dijkstra('41770395', '41733133', 20000)
