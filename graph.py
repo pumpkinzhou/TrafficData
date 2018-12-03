@@ -111,6 +111,100 @@ class Graph(object):
         (edge_id, node_from, node_to, length, speed)"""
         return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.speed) for e in self.edges]
 
+    def num_of_subgraphs(self):
+        uf = UnionFind()
+        for node in self.nodes:
+            uf.init_matrix(node.node_id)
+            for e in node.edges:
+                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+                if nei.node_id in uf.father:
+                    uf.union(node.node_id, nei.node_id)
+
+        for node in self.nodes:
+            node.subgraph = uf.find(node.node_id)
+
+        # print(uf.father.keys())
+        return uf.count
+
+    def plot_graph(self, speed_color=False, day=1, time=36):
+        """ Plot all links in the graph, day: 0 == Sun, 1 == Mon, ..., 6 == Sat, time: 0 == 0:00, 1 == 0:15, ...."""
+
+        lines = []
+        for e in self.edges:
+            lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
+                          (float(e.node_to.LON), float(e.node_to.LAT))])
+
+        # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
+        # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
+        #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
+        # plt.show()
+        if not speed_color:
+            line_segments = mc.LineCollection(lines)
+        else:
+            c = []
+            for e in self.edges:
+                if e.speed['FREE_FLOW_SPEED']:
+                    if not (e.speed['F_SPEED'] or e.speed['T_SPEED']):
+                        print(e.speed['F_SPEED'], e.speed['T_SPEED'])
+                        print(e.edge_id)
+                    speedFactor = (e.speed['F_SPEED'] or e.speed['T_SPEED'])[day][time] / e.speed['FREE_FLOW_SPEED']
+                else:
+                    speedFactor = 1
+
+                if speedFactor < 0.5:
+                    c.append('r')
+                elif 0.5 <= speedFactor < 0.75:
+                    c.append('y')
+                # elif 0.75 <= speedFactor < 1:
+                #     c.append('g')
+                else:
+                    # c.append('k')
+                    c.append('g')
+            line_segments = mc.LineCollection(lines, colors=c)
+
+        fig, ax = plt.subplots()
+        ax.add_collection(line_segments)
+        ax.autoscale()
+        return
+
+    def plot_subgraphs(self, n):
+        """ plot: colored n largest disconnected subgraphs"""
+        colors = np.concatenate((np.random.rand(3, n), np.ones((1, n))))
+
+        subgraph_dict = defaultdict(int)
+        for node in self.nodes:
+            subgraph_dict[node.subgraph] += 1
+
+        subgraph_ids = [item[0] for item in sorted(subgraph_dict.items(), key=lambda v: v[1], reverse=True)]
+        subgraph_ids = subgraph_ids[:n]
+
+        color_dic = {}
+        for i, subgraph in enumerate(subgraph_dict):
+            color_dic[subgraph] = colors[:, i]
+
+        lines = []
+        c = []
+        for e in self.edges:
+            if e.node_from.subgraph in subgraph_ids:
+                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
+                              (float(e.node_to.LON), float(e.node_to.LAT))])
+                c.append(color_dic[e.node_from.subgraph])
+
+        line_segments = mc.LineCollection(lines, colors=c)
+        fig, ax = plt.subplots()
+        ax.add_collection(line_segments)
+        ax.autoscale()
+
+        # x, y, color = [], [], []
+        # for node in self.nodes:
+        #     if node.subgraph in subgraph_ids:
+        #         x.append(int(node.LON))
+        #         y.append(int(node.LAT))
+        #         color.append(color_dic[node.subgraph])
+        # plt.figure()
+        # plt.scatter(x, y, c = color)
+        # plt.show()
+
     def find_path(self, start_node_id, end_node_id, path = []):
         """find path use dfs. The output is a feasible path or None.
         ARGUMENTS: start_node_id, end_node_id
@@ -186,10 +280,10 @@ class Graph(object):
             print('There is no path from node {} to node {}'.format(start_node_id, end_node_id))
             return None
 
-    def dijkstra(self, start_node_id, end_node_id, K = float('inf')):
+    def dijkstra(self, start_node_id, end_node_id, K = float('inf'), day = 1, time = 36):
         """dijkstra uses a priority queue. The output is the shortest path and path_length.
         ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
-        RETURN: shortest_path, path_length.."""
+        RETURN: minimal time path"""
         node = self.find_node(start_node_id)
         pq = [(0, 0, node)]
 
@@ -217,12 +311,19 @@ class Graph(object):
 
             for e in node.edges:
                 nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
-                if e.speed['FREE_FLOW_SPEED'] is None:
-                    speed = 30
-                elif e.speed['FREE_FLOW_SPEED'] == 0:
-                    speed = 30
-                else:
-                    speed = e.speed['FREE_FLOW_SPEED']
+                try:
+                    if nei == e.node_to:
+                        speeds = e.speed['F_SPEED']
+                        if not speeds:
+                            continue
+                    else:
+                        speeds = e.speed['T_SPEED']
+                        if not speeds:
+                            continue
+                    speed = speeds[day][time]
+                except:
+                    speed = e.speed['AVG_SPEED']
+                    print(e.edge_id, e.speed)
                 # new_obj = dist[node.node_id]['val'] + float(e.length)  # shortest length
 
                 new_obj = dist[node.node_id]['val'] + float(e.length) / (speed * 1.6 * 1000 / 3600)   #minimal time unit: seconds
@@ -241,96 +342,89 @@ class Graph(object):
         print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
         return None
 
-    def num_of_subgraphs(self):
-        uf = UnionFind()
-        for node in self.nodes:
-            uf.init_matrix(node.node_id)
+    def cdf_dijkstra(self, start_node_id, end_node_id, battery_level, day = 1, time = 36):
+        """dijkstra uses a priority queue. The output is the shortest path and path_length.
+        ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
+        RETURN: path with minimal energy consumption using CDF mode"""
+
+        Cele = 0.114 # $ / kWh   # Energy price
+        Cgas = 2.75  #  $ / gallon
+        mu_CD_Value = [3.137, 4.386, 4.135]     # mi / kWh
+        mu_CS_Value = [28.88, 49.034, 47.11]  # mi / gal
+
+        node = self.find_node(start_node_id)
+        pq = [(0, 0, node, battery_level)]
+
+        # dist = {start_node_id: (0, -1)}  # distance to the start, parent
+        dist = defaultdict(dict)
+        dist[start_node_id]['val'] = 0
+        dist[start_node_id]['parent'] = -1  # distance to the start, parent
+        # max_queue_length = 0
+        sq = 0  #index the node inserted to the priority queue
+        while pq:
+            # max_queue_length = max(len(pq), max_queue_length)
+            obj, _, node, battery_level = heappop(pq)
+
+            if node.node_id == end_node_id: # terminal condition
+                path = [end_node_id]
+                par = dist[end_node_id]['parent']
+                while par != -1:
+                    path.insert(0, par)
+                    par = dist[par]['parent']
+                return path, dist[end_node_id]['val']
+                # return path, dist[end_node_id]['val'], max_queue_length
+
             for e in node.edges:
                 nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
-                if nei.node_id in uf.father:
-                    uf.union(node.node_id, nei.node_id)
 
-        for node in self.nodes:
-            node.subgraph = uf.find(node.node_id)
+                try:
+                    if nei == e.node_to:
+                        speeds = e.speed['F_SPEED']
+                        if not speeds:
+                            continue
+                    else:
+                        speeds = e.speed['T_SPEED']
+                        if not speeds:
+                            continue
+                    speed = speeds[day][time]
+                except:
+                    speed = e.speed['AVG_SPEED']
+                    print(e.edge_id, e.speed)
 
-        # print(uf.father.keys())
-        return uf.count
-
-    def plot_graph(self, speed_color=False, day = 1, time = 36):
-        """ Plot all links in the graph, day: 0 == Sun, 1 == Mon, ..., 6 == Sat, time: 0 == 0:00, 1 == 0:15, ...."""
-
-        lines = []
-        for e in self.edges:
-            lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
-                          (float(e.node_to.LON), float(e.node_to.LAT))])
-
-        # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
-        # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
-        #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
-        # plt.show()
-        if not speed_color:
-            line_segments = mc.LineCollection(lines)
-        else:
-            c = []
-            for e in self.edges:
-                if e.speed['FREE_FLOW_SPEED']:
-                    if not (e.speed['F_SPEED'] or e.speed['T_SPEED']):
-                        print (e.speed['F_SPEED'], e.speed['T_SPEED'])
-                        print(e.edge_id)
-                    speedFactor = (e.speed['F_SPEED'] or e.speed['T_SPEED'])[day][time]/e.speed['FREE_FLOW_SPEED']
+                if speed < 20:
+                    mode = 0  # low
+                elif 20 <= speed < 40:
+                    mode = 1  # median
+                elif speed >= 40:
+                    mode = 2  # high
                 else:
-                    speedFactor =  1
+                    print('speed error, speed = ', speed)
 
-                if speedFactor < 0.5:
-                    c.append('r')
-                elif 0.5 <= speedFactor < 0.75:
-                    c.append('y')
-                # elif 0.75 <= speedFactor < 1:
-                #     c.append('g')
+                if battery_level:
+                    if battery_level >= float(e.length) / mu_CD_Value[mode]:
+                        cost = Cele * float(e.length) / mu_CD_Value[mode]
+                        new_battery_level = battery_level - float(e.length) / mu_CD_Value[mode]
+                    else:
+                        cost = Cele * battery_level + \
+                               Cgas * (float(e.length) - mu_CD_Value[mode] * battery_level ) / mu_CS_Value[mode]
+                        new_battery_level = 0
                 else:
-                    # c.append('k')
-                    c.append('g')
-            line_segments = mc.LineCollection(lines, colors=c)
+                    cost = Cgas * float(e.length) / mu_CS_Value[mode]
+                    new_battery_level = 0
 
-        fig, ax = plt.subplots()
-        ax.add_collection(line_segments)
-        ax.autoscale()
-        return
+                new_obj = dist[node.node_id]['val'] + cost
 
-    def plot_subgraphs(self, n):
-        """ plot: colored n largest disconnected subgraphs"""
-        colors= np.concatenate((np.random.rand(3, n), np.ones((1,n))))
+                if nei.node_id not in dist:
+                    dist[nei.node_id]['val'] = new_obj
+                    dist[nei.node_id]['parent']= node.node_id
+                    sq += 1
+                    heappush(pq, (new_obj, sq, nei, new_battery_level))
+                elif new_obj < dist[nei.node_id]['val']:
+                    dist[nei.node_id]['val'] = new_obj
+                    dist[nei.node_id]['parent'] = node.node_id
+                    sq += 1
+                    heappush(pq, (new_obj, sq, nei, new_battery_level))
 
-        subgraph_dict = defaultdict(int)
-        for node in self.nodes:
-            subgraph_dict[node.subgraph] += 1
+        print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
+        return None
 
-        subgraph_ids = [item[0] for item in sorted(subgraph_dict.items(), key=lambda v: v[1], reverse=True)]
-        subgraph_ids = subgraph_ids[:n]
-
-        color_dic = {}
-        for i, subgraph in enumerate(subgraph_dict):
-            color_dic[subgraph]  = colors[:,i]
-
-        lines = []
-        c = []
-        for e in self.edges:
-            if e.node_from.subgraph in subgraph_ids:
-                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
-                              (float(e.node_to.LON), float(e.node_to.LAT))])
-                c.append(color_dic[e.node_from.subgraph])
-
-        line_segments = mc.LineCollection(lines, colors=c)
-        fig, ax = plt.subplots()
-        ax.add_collection(line_segments)
-        ax.autoscale()
-
-        # x, y, color = [], [], []
-        # for node in self.nodes:
-        #     if node.subgraph in subgraph_ids:
-        #         x.append(int(node.LON))
-        #         y.append(int(node.LAT))
-        #         color.append(color_dic[node.subgraph])
-        # plt.figure()
-        # plt.scatter(x, y, c = color)
-        # plt.show()

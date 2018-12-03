@@ -8,6 +8,7 @@ import calendar
 calendar.setfirstweekday(calendar.SUNDAY)
 
 import graph
+import car
 
 
 ''' main() '''
@@ -117,7 +118,8 @@ def plot_path(path, colour = 'k'):
     xs = [int(g._node_map[node_id].LAT) for node_id in path]
     ys = [int(g._node_map[node_id].LON) for node_id in path]
     # plt.figure()
-    plt.plot(ys, xs, marker='o', color = colour)
+    # plt.plot(ys, xs, marker='o', color = colour)
+    plt.plot(ys, xs, linewidth=5.0, color=colour)
 
 
 def random_walk(s, level):
@@ -158,7 +160,7 @@ TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern
 add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 
 ''' graph analysis'''
-g.plot_graph(True, 1, 37)
+# g.plot_graph(True, 1, 36)
 # g.plot_graph(True)
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 # g.plot_subgraphs(g.num_of_subgraphs())
@@ -168,6 +170,10 @@ g.plot_graph(True, 1, 37)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 
 ''' path finding'''
+car = car.Car('1')
+car.set_origin('41775277')
+car.set_destination('41695498')
+print(car.get_od_pair())
 # path, path_length = random_walk('41770342', 50)
 # goal_node_id = path[-1]
 # g._clear_visited()
@@ -176,10 +182,13 @@ g.plot_graph(True, 1, 37)
 # bfs_path, bfs_dist = g.bfs('41770395', '41771374')
 # plot_path(bfs_path, 'g')
 # dijkstra_path, dijkstra_obj = g.dijkstra('41770395', '41771374', 20000)
-bfs_path, bfs_dist = g.bfs('41775277', '41695498')
-plot_path(bfs_path, 'k')
-dijkstra_path, dijkstra_obj = g.dijkstra('41775277', '41695498')
+# bfs_path, bfs_dist = g.bfs('41775277', '41695498')
+# plot_path(bfs_path, 'k')
+# dijkstra_path, dijkstra_obj = g.dijkstra('41775277', '41695498')
+# plot_path(dijkstra_path, 'y')
+dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
 plot_path(dijkstra_path, 'm')
+
 
 # bfs_path, bfs_dist = g.bfs('41770395', '41733133')
 # dijkstra_path, dijkstra_obj = g.dijkstra('41770395', '41733133', 20000)
