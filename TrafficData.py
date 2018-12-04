@@ -170,7 +170,7 @@ add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 
 ''' path finding'''
-car = car.Car('1')
+car = car.HCar('1')
 car.set_origin('41775277')
 car.set_destination('41695498')
 print(car.get_od_pair())
@@ -189,9 +189,9 @@ print(car.get_od_pair())
 dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
 plot_path(dijkstra_path, 'm')
 
-car.set_battery_level(2.0)
-dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
-plot_path(dijkstra_path, 'm')
+# car.set_battery_level(2.0)
+# dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
+# plot_path(dijkstra_path, 'm')
 
 
 # bfs_path, bfs_dist = g.bfs('41770395', '41733133')
