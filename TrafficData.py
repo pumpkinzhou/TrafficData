@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import calendar
 calendar.setfirstweekday(calendar.SUNDAY)
 
-import graph
-import car
+from graph import Graph
+from car import HCar
+from routing import Routing
 
 
 ''' main() '''
@@ -140,7 +141,7 @@ def random_walk(s, level):
     return path, dist
 
 
-g = graph.Graph()
+g = Graph()
 # data = read_json('TrafficData\TrafficData_test.json')  #for test purpose only
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 ''' load data'''
@@ -170,10 +171,11 @@ add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 
 ''' path finding'''
-car = car.HCar('1')
+car = HCar('1')
 car.set_origin('41775277')
 car.set_destination('41695498')
 print(car.get_od_pair())
+alg = Routing(g)
 # path, path_length = random_walk('41770342', 50)
 # goal_node_id = path[-1]
 # g._clear_visited()
@@ -186,8 +188,9 @@ print(car.get_od_pair())
 # plot_path(bfs_path, 'k')
 # dijkstra_path, dijkstra_obj = g.dijkstra('41775277', '41695498')
 # plot_path(dijkstra_path, 'y')
-dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
-plot_path(dijkstra_path, 'm')
+
+cdf_path, energy_cost = alg.cdf_dijkstra(car.origin, car.destination, car.battery_level)
+plot_path(cdf_path, 'm')
 
 # car.set_battery_level(2.0)
 # dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
