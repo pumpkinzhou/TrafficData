@@ -16,7 +16,6 @@ from routing import Routing
 def read_json(file):
     with open(file, 'r') as fp:
         data = json.load(fp)
-        fp.close()
         return data
     print('file not open!')
     return None
@@ -25,7 +24,6 @@ def read_json(file):
 def read_json2(file):
     with open(file) as fp:
         mainlist = [literal_eval(line) for line in fp]
-        fp.close()
         raw_data = mainlist[0] if mainlist else None     #data processing
         d = {}
         for item in raw_data:
@@ -38,7 +36,6 @@ def read_json2(file):
 def read_json3(file):
     with open(file) as fp:
         mainlist = [literal_eval(line) for line in fp]
-        fp.close()
         raw_data = mainlist[0] if mainlist else None  #data processing
         d = {}
         for item in raw_data:
@@ -100,13 +97,11 @@ def save_graph(filename, graph):
     # print ('Recursion limit:', sys.getrecursionlimit())
     with open(filename, 'wb') as fp:
         pickle.dump(graph, fp, pickle.HIGHEST_PROTOCOL)
-        fp.close()
 
 
 def load_graph(filename):
     with open(filename, 'rb') as fp:
         graph = pickle.load(fp)
-        fp.close()
         return graph
     print('Graph not loaded!')
     return None
@@ -165,6 +160,8 @@ add_speed_info(g, TrafficPatternData, TrafficPatternTable)
 # g.plot_graph(True)
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 # g.plot_subgraphs(g.num_of_subgraphs())
+# g_adj = g.get_adjacency_matrix()
+g_adj = g.get_sparse_adjacency_list()
 
 ''' save graph using pickle'''
 # save_graph('CODES\NetworkData.pckl', g)
