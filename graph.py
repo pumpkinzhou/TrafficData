@@ -5,7 +5,6 @@ from collections import defaultdict
 import pprint
 import matplotlib.pyplot as plt
 
-
 class UnionFind:
 
     def __init__(self):
@@ -65,12 +64,29 @@ class Graph(object):
     def __init__(self, nodes=None, edges=None):
         self.nodes = nodes or []
         self.edges = edges or []
-        self._node_map = {}
+        self._node_map = {}  # node_id --> node
         self._edge_map = {}
+        self.node_id_to_num = {}  # node_id --> index
 
     def __repr__(self):
         return '{self.__class__.__name__}'.format(self=self)
 
+    def build_node_id_to_num(self):
+        """
+        Node numbers are 0 based (starting at 0).
+        """
+        i = 0
+        for node in self.nodes:
+            self.node_id_to_num[node.node_id] = i
+            i += 1
+
+    def get_node_num(self, id):
+        """
+        this can only be called after build_node_id_to_num()
+        :param id: node_id
+        :return: node_num
+        """
+        return self.node_id_to_num[id]
 
     def insert_node(self, new_node_id, LAT, LON):
         "Insert a new node with value new_node_val"
@@ -112,6 +128,29 @@ class Graph(object):
         """Return a list of triples that looks like this:
         (edge_id, node_from, node_to, length, speed)"""
         return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.speed) for e in self.edges]
+
+    def get_adjacency_matrix(self):
+        """Return a matrix, or 2D list.
+        Row numbers represent from nodes,
+        column numbers represent to nodes.
+        Store the edge values in each spot,
+        and a 0 if no edge exists."""
+
+        if len(self.node_id_to_num) < len(self.nodes):
+            self.build_node_id_to_num()
+
+        max_index = len(self.node_id_to_num)
+        adjacency_matrix = np.zeros((max_index, max_index))
+        for edg in self.edges:
+            from_index, to_index = self.node_id_to_num[edg.node_from.node_id], self.node_id_to_num[edg.node_to.node_id]
+            adjacency_matrix[from_index][to_index] = float(edg.length)
+        return adjacency_matrix
+
+    def get_sparse_adjacency_list(self):
+        if len(self.node_id_to_num) < len(self.nodes):
+            self.build_node_id_to_num()
+        return [(e.edge_id, self.node_id_to_num[e.node_from.node_id],
+                 self.node_id_to_num[e.node_to.node_id], float(e.length)) for e in self.edges]
 
     def num_of_subgraphs(self):
         uf = UnionFind()

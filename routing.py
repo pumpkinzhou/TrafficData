@@ -1,6 +1,11 @@
 from collections import defaultdict
 from heapq import heapify, heappush, heappop
 
+import sys
+import math
+import itertools
+from gurobipy import *
+
 class Routing():
     def __init__(self, graph):
         self.graph = graph
@@ -205,3 +210,13 @@ class Routing():
 
         print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
         return None
+
+    def crptc(self, start_node_id, end_node_id, battery_level,day=1, time=36):
+        m = Model('MINLP')
+        # Create variables
+
+        x = m.addVar(vtype=GRB.BINARY, name='x')
+        y = m.addVar(lb=0, ub=1, vtype=GRB.CONTINUOUS, name='y')
+
+
+
