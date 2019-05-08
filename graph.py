@@ -46,12 +46,22 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, edge_id, node_from, node_to, length):
+    def __init__(self, edge_id, ref_node, non_ref_node, length):
         self.edge_id = edge_id
-        self.node_from = node_from
-        self.node_to = node_to
+        self.ref_node = ref_node
+        self.non_ref_node = non_ref_node
         self.length = length
-        self.speed = defaultdict(dict)     # speed dictionary {}
+        self.travel_direction = ''
+        self.traffic_info = defaultdict(dict)     # traffic dictionary {}
+
+    def get_travel_direction(self):
+        return self.travel_direction
+
+    def set_travel_direction(self, dir):  # dir = 'B' or 'F' or 'T'
+        self.travel_direction = dir
+
+    def get_traffic_info(self):
+        return self.traffic_info
 
     def __repr__(self):
         return '{self.__class__.__name__}'.format(self = self)
@@ -106,17 +116,17 @@ class Graph(object):
         for node in self.nodes:
             node.visited = False
 
-    def insert_edge(self, edge_id, node_from_id, LAT_from, LON_from,
-                    node_to_id, LAT_to, LON_to, new_edge_length):
+    def insert_edge(self, edge_id, ref_node_id, LAT_from, LON_from,
+                    non_ref_node_id, LAT_to, LON_to, new_edge_length):
         "Insert a new edge, creating new nodes if necessary"
         if edge_id in self._edge_map:
             print("insert an existing edge!")
             return
-        node_from = self._node_map.get(node_from_id) or self.insert_node(node_from_id, LAT_from, LON_from)
-        node_to = self._node_map.get(node_to_id) or self.insert_node(node_to_id, LAT_to, LON_to)
-        new_edge = Edge(edge_id, node_from, node_to, new_edge_length)
-        node_from.edges.append(new_edge)
-        node_to.edges.append(new_edge)
+        ref_node = self._node_map.get(ref_node_id) or self.insert_node(ref_node_id, LAT_from, LON_from)
+        non_ref_node = self._node_map.get(non_ref_node_id) or self.insert_node(non_ref_node_id, LAT_to, LON_to)
+        new_edge = Edge(edge_id, ref_node, non_ref_node, new_edge_length)
+        ref_node.edges.append(new_edge)
+        non_ref_node.edges.append(new_edge)
         self.edges.append(new_edge)
         self._edge_map[edge_id] = new_edge
 
@@ -126,14 +136,14 @@ class Graph(object):
 
     def get_edge_list(self):
         """Return a list of triples that looks like this:
-        (edge_id, node_from, node_to, length, speed)"""
-        return [(e.edge_id, e.node_from.node_id, e.node_to.node_id, e.length, e.speed) for e in self.edges]
+        (edge_id, ref_node, non_ref_node, length, travel_direction, traffic_info)"""
+        return [(e.edge_id, e.ref_node.node_id, e.non_ref_node.node_id, e.length, e.travel_direction, e.traffic_info) for e in self.edges]
 
     def get_adjacency_matrix(self):
         """Return a matrix, or 2D list.
         Row numbers represent from nodes,
         column numbers represent to nodes.
-        Store the edge values in each spot,
+        Store the edge length in each spot,
         and a 0 if no edge exists."""
 
         if len(self.node_id_to_num) < len(self.nodes):
@@ -142,22 +152,23 @@ class Graph(object):
         max_index = len(self.node_id_to_num)
         adjacency_matrix = np.zeros((max_index, max_index))
         for edg in self.edges:
-            from_index, to_index = self.node_id_to_num[edg.node_from.node_id], self.node_id_to_num[edg.node_to.node_id]
+            from_index, to_index = self.node_id_to_num[edg.ref_node.node_id], self.node_id_to_num[edg.non_ref_node.node_id]
             adjacency_matrix[from_index][to_index] = float(edg.length)
         return adjacency_matrix
 
     def get_sparse_adjacency_list(self):
         if len(self.node_id_to_num) < len(self.nodes):
             self.build_node_id_to_num()
-        return [(e.edge_id, self.node_id_to_num[e.node_from.node_id],
-                 self.node_id_to_num[e.node_to.node_id], float(e.length)) for e in self.edges]
+        return [(e.edge_id, self.node_id_to_num[e.ref_node.node_id],
+                 self.node_id_to_num[e.non_ref_node.node_id], float(e.length)) for e in self.edges]
 
     def num_of_subgraphs(self):
+        # direction is not considered when counting the num of subgraphs
         uf = UnionFind()
         for node in self.nodes:
             uf.init_matrix(node.node_id)
             for e in node.edges:
-                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+                nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
                 if nei.node_id in uf.father:
                     uf.union(node.node_id, nei.node_id)
 
@@ -167,49 +178,107 @@ class Graph(object):
         # print(uf.father.keys())
         return uf.count
 
-    def plot_graph(self, speed_color=False, day=1, time=36):
+    def plot_graph(self, direction=False, traffic_color=False, day=1, time=36):
         """ Plot all links in the graph, day: 0 == Sun, 1 == Mon, ..., 6 == Sat, time: 0 == 0:00, 1 == 0:15, ...."""
 
         lines = []
+        c = []
         for e in self.edges:
-            lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
-                          (float(e.node_to.LON), float(e.node_to.LAT))])
-
-        # print([(float(e.node_from.LON), float(e.node_from.LAT)), (float(e.node_to.LON), float(e.node_to.LAT))])
-        # plt.plot([float(e.node_from.LON), float(e.node_to.LON)],
-        #          [float(e.node_from.LAT), float(e.node_to.LAT)], marker='o')
-        # plt.show()
-        if not speed_color:
-            line_segments = mc.LineCollection(lines)
-        else:
-            c = []
-            for e in self.edges:
-                if e.speed['FREE_FLOW_SPEED']:
-                    if not (e.speed['F_SPEED'] or e.speed['T_SPEED']):
-                        print(e.speed['F_SPEED'], e.speed['T_SPEED'])
-                        print(e.edge_id)
-                    speedFactor = (e.speed['F_SPEED'] or e.speed['T_SPEED'])[day][time] / e.speed['FREE_FLOW_SPEED']
+            if direction:
+                if e.travel_direction == 'F':
+                    lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
+                                  (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
+                elif e.travel_direction == 'T':
+                    lines.append([(float(e.non_ref_node.LON)+1, float(e.non_ref_node.LAT)+1),
+                                  (float(e.ref_node.LON)+1, float(e.ref_node.LAT)+1)])
+                elif e.travel_direction == 'B':
+                    lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
+                                  (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
+                    lines.append([(float(e.non_ref_node.LON) + 1, float(e.non_ref_node.LAT) + 1),
+                                  (float(e.ref_node.LON) + 1, float(e.ref_node.LAT) + 1)])
                 else:
-                    speedFactor = 1
+                    print(e.edge_id, ': no edge direction info!')
+            else:
+                lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
+                              (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
 
-                if speedFactor < 0.5:
-                    c.append('r')
-                elif 0.5 <= speedFactor < 0.75:
-                    c.append('y')
-                # elif 0.75 <= speedFactor < 1:
-                #     c.append('g')
+            if traffic_color:
+                if e.traffic_info['FREE_FLOW_SPEED']:
+                    speed_factor = []
+                    if e.travel_direction == 'F':
+                        if e.traffic_info['F_SPEED']:
+                            speed_factor.append(e.traffic_info['F_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                        else:
+                            print(e.edge_id, "F but no F_SPEED traffic info")
+                    elif e.travel_direction == 'T':
+                        if e.traffic_info['T_SPEED']:
+                            speed_factor.append(e.traffic_info['T_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                        else:
+                            print(e.edge_id, "T but no T_SPEED traffic info")
+                    elif e.travel_direction == 'B':
+                        if e.traffic_info['F_SPEED']:
+                            speed_factor.append(
+                                e.traffic_info['F_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                        else:
+                            print(e.edge_id, "bidirectional but no F_SPEED traffic info")
+                        if e.traffic_info['T_SPEED']:
+                            speed_factor.append(
+                                e.traffic_info['T_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                        else:
+                            print(e.edge_id, "bidirectional but no T_SPEED traffic info")
+                    else:
+                        print(e.traffic_info['F_SPEED'], e.traffic_info['T_SPEED'])
+                        print(e.edge_id, ': no traffic info!')
                 else:
-                    # c.append('k')
-                    c.append('g')
+                    print(e.edge_id, ': no free flow speed info!')
+                    speed_factor = [2] if e.travel_direction == 'F' or 'T' else [2, 2]
+
+                if not speed_factor:
+                    speed_factor = [2] if e.travel_direction == 'F' or 'T' else [2, 2]
+                if e.travel_direction == 'B' and len(speed_factor) == 1:
+                    if e.traffic_info['F_SPEED']:
+                        speed_factor.append(2)
+                    else:
+                        speed_factor = [2] + speed_factor
+
+                for s in speed_factor:
+                    if s == 2:
+                        c.append('k')
+                    elif s < 0.5:
+                        c.append('r')
+                    elif 0.5 <= s < 0.75:
+                        c.append('y')
+                    elif 0.75 <= s < 1:
+                        c.append('g')
+                    else:
+                        c.append('m')
+
+        if traffic_color:
             line_segments = mc.LineCollection(lines, colors=c)
+        else:
+            line_segments = mc.LineCollection(lines)
 
         fig, ax = plt.subplots()
         ax.add_collection(line_segments)
         ax.autoscale()
+
+        if direction:
+            x, y, u, v = [], [], [], []
+            for line in lines:
+                x.append(line[0][0])
+                y.append(line[0][1])
+                u.append(line[1][0] - line[0][0])
+                v.append(line[1][1] - line[0][1])
+
+            ax.quiver(x, y, u, v, scale_units='xy', angles='xy', scale=2, headwidth=7)
+            ax.set_aspect('equal','box')
+
+        plt.show()
         return
 
     def plot_subgraphs(self, n):
-        """ plot: colored n largest disconnected subgraphs"""
+        """ plot: colored n largest disconnected subgraphs (direction is not considered)"""
+        fig, ax = plt.subplots()
         colors = np.concatenate((np.random.rand(3, n), np.ones((1, n))))
 
         subgraph_dict = defaultdict(int)
@@ -226,13 +295,13 @@ class Graph(object):
         lines = []
         c = []
         for e in self.edges:
-            if e.node_from.subgraph in subgraph_ids:
-                lines.append([(float(e.node_from.LON), float(e.node_from.LAT)),
-                              (float(e.node_to.LON), float(e.node_to.LAT))])
-                c.append(color_dic[e.node_from.subgraph])
+            if e.ref_node.subgraph in subgraph_ids:
+                lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
+                              (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
+                c.append(color_dic[e.ref_node.subgraph])
 
         line_segments = mc.LineCollection(lines, colors=c)
-        fig, ax = plt.subplots()
+
         ax.add_collection(line_segments)
         ax.autoscale()
 
@@ -247,7 +316,7 @@ class Graph(object):
         # plt.show()
 
     def find_path(self, start_node_id, end_node_id, path = []):
-        """find path use dfs. The output is a feasible path or None.
+        """find path use dfs WITHOUT considering traffic direction. The output is a feasible path or None.
         ARGUMENTS: start_node_id, end_node_id
         RETURN: path ([node_id ....])."""
 
@@ -260,9 +329,8 @@ class Graph(object):
         if not node.edges:
             return None
 
-
         for e in node.edges:
-            nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+            nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
             if nei.visited:
                 continue
             elif nei not in path:
@@ -273,7 +341,8 @@ class Graph(object):
         return None
 
     def bfs(self, start_node_id, end_node_id):
-        """BFS iterating through a node's edges. The output is the shortest path + length.
+        """BFS iterating through a node's edges withOUT considering traffic directions.
+        The output is the shortest path + length.
         ARGUMENTS: start_node_id, end_node_id
         RETURN: path (node_ids), path_length."""
         if start_node_id == end_node_id:
@@ -298,7 +367,7 @@ class Graph(object):
                     dist[end_node_id]['parent'] = dist[node.node_id]['parent']
 
             for e in node.edges:
-                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+                nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
                 new_dist = dist[node.node_id]['val'] + float(e.length)
                 if not nei.visited:
                     nei.visited = True
@@ -322,7 +391,8 @@ class Graph(object):
             return None
 
     def dijkstra(self, start_node_id, end_node_id, K = float('inf')):
-        """dijkstra uses a priority queue. The output is the shortest path and path_length.
+        """dijkstra uses a priority queue withOUT considering traffic directions.
+        The output is the shortest path and path_length.
         ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
         RETURN: minimal time path"""
         node = self.find_node(start_node_id)
@@ -351,20 +421,20 @@ class Graph(object):
                 # return path, dist[end_node_id]['val'], max_queue_length
 
             for e in node.edges:
-                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+                nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
+                if nei == e.node_to:
+                    new_obj = obj + float(e.length)  # shortest length
 
-                new_obj = obj + float(e.length)  # shortest length
-
-                if nei.node_id not in dist:
-                    dist[nei.node_id]['val'] = new_obj
-                    dist[nei.node_id]['parent']= node.node_id
-                    sq += 1
-                    heappush(pq, (new_obj, sq, nei))
-                elif new_obj < dist[nei.node_id]['val']:
-                    dist[nei.node_id]['val'] = new_obj
-                    dist[nei.node_id]['parent'] = node.node_id
-                    sq += 1
-                    heappush(pq, (new_obj, sq, nei))
+                    if nei.node_id not in dist:
+                        dist[nei.node_id]['val'] = new_obj
+                        dist[nei.node_id]['parent']= node.node_id
+                        sq += 1
+                        heappush(pq, (new_obj, sq, nei))
+                    elif new_obj < dist[nei.node_id]['val']:
+                        dist[nei.node_id]['val'] = new_obj
+                        dist[nei.node_id]['parent'] = node.node_id
+                        sq += 1
+                        heappush(pq, (new_obj, sq, nei))
 
         print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
         return None
