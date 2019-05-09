@@ -46,21 +46,40 @@ def read_json3(file):
 
 
 def add_edges(graph, data):
-    # add geographical edge without considering the travel directions
-    # travel directions will be added by add_traffic_info.py
     for link_id in data:
-        '''edge_id, ref_node_id, LAT_from, LON_from, non_ref_node
-        _id, LAT_to, LON_to, new_edge_length)'''
+        #edge_id, ref_node_id, LAT_from, LON_from, non_ref_node_id, LAT_to, LON_to, new_edge_length)
         link = data[link_id]
         LAT = link['LAT'].split(',')
         LAT[1] = str(int(LAT[0]) + int(LAT[1]))
         LON = link['LON'].split(',')
         LON[1] = str(int(LON[0]) + int(LON[1]))
-        graph.insert_edge(link['LINK_ID'],
-                          link['REF_NODE_ID'], LAT[0], LON[0],
-                          link['NONREF_NODE_ID'], LAT[1], LON[1],
-                          link['LINK_LENGTH'])
+        edges_connected_node_to = link['NONREF_NODE_NEIGHBOR_LINKS'].split(',')
+        edges_connected_node_from = link['REF_NODE_NEIGHBOR_LINKS'].split(',')
+        graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0], link['NONREF_NODE_ID'], LAT[1],
+                          LON[1], link['LINK_LENGTH'], edges_connected_node_from, edges_connected_node_to)
 
+###############################################################################
+
+def add_edges_simple(graph, data):
+    mylist = ['41774414','41774496','41774541','41774546','1774584','41774412','41774535','41774555',\
+             '41774533','41774551','41774538','41774539','41774410','41774548','41774522','41774532',\
+             '41774579','41774564','41774526','41774530','41774529','41774553','875677646','875677647',\
+             '41774527']
+    # mylist = ['807507016', '807507015', '41492230', '940171951', '41492297', '1153863269']
+    for link_id in data:
+        link = data[link_id]
+        if link['REF_NODE_ID'] in mylist and link['NONREF_NODE_ID'] in mylist:
+            LAT = link['LAT'].split(',')
+            LAT[1] = str(int(LAT[0]) + int(LAT[1]))
+            LON = link['LON'].split(',')
+            LON[1] = str(int(LON[0]) + int(LON[1]))
+            edges_connected_node_from = link['REF_NODE_NEIGHBOR_LINKS'].split(',')
+            edges_connected_node_to = link['NONREF_NODE_NEIGHBOR_LINKS'].split(',')
+            graph.insert_edge(link['LINK_ID'], link['REF_NODE_ID'], LAT[0], LON[0],
+                              link['NONREF_NODE_ID'], LAT[1],LON[1], link['LINK_LENGTH'],
+                              edges_connected_node_from, edges_connected_node_to)
+
+###############################################################################
 
 def add_traffic_info(graph, pattern_data, pattern_table):
     for e in graph.edges:
@@ -95,7 +114,6 @@ def add_traffic_info(graph, pattern_data, pattern_table):
 
         else:
             e.traffic_info['FREE_FLOW_SPEED'] = 0    # 0 indicates e.edge_id not found pattern_data
-
 
 def save_graph(filename, graph):
     # print (sys.getrecursionlimit())  # default is 1000
@@ -144,10 +162,8 @@ def random_walk(s, level):
 
 
 g = Graph()
-# data = read_json('TrafficData\TrafficData_test.json')  #for test purpose only
-# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 ''' load data'''
-# data = read_json('TrafficData\\data\\BostonData\\NetworkData.json')     # load main data setv
+# data = read_json('data\\BostonData\\NetworkData.json')     # load main data setv
 # add_edges(g, data)
 # add data from different zoom levels (zoom12 matters most)
 data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms2\\NetworkData_zoom*.json')
@@ -159,16 +175,22 @@ data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms2\\TrafficPatter
 for f in data_files:
     TrafficPatternData.update(read_json(f))
 TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern_table2.json')
-# add speed info to edges
+# add traffic info to edges
 add_traffic_info(g, TrafficPatternData, TrafficPatternTable)
+
+''' make the graoh closed '''
+#g.remove_marginal_edges()
+#g.add_edges_to_make_graph_closed()
+#g.make_adjacency_matrix_symmetric(TrafficPatternTable)
 
 ''' graph analysis'''
 direction = True
 traffic_color = True
-# g.plot_graph(direction, traffic_color) # Default Parameters: direction=False, speed_color=False, day=1, time=36
-# g.plot_subgraphs(g.num_of_subgraphs())
-# print("# of disconnected subgraphs = ", g.num_of_subgraphs())
-# g_adj = g.get_adjacency_matrix()
+g.plot_graph(direction, traffic_color) # Default Parameters: direction=False, traffic_color=False, day=1, time=36
+# g.plot_graph(True)
+#print("# of disconnected subgraphs = ", g.num_of_subgraphs())
+#g.plot_subgraphs(g.num_of_subgraphs())
+#g_adj = g.get_adjacency_matrix()
 # g_adj = g.get_sparse_adjacency_list()
 
 ''' save graph using pickle'''
@@ -176,10 +198,14 @@ traffic_color = True
 # g_loaded = load_graph('CODES\TrafficGraph.pckl')
 
 ''' path finding'''
+start_node_id = g.get_node_id(1)
+end_node_id = g.get_node_id(22)
+
 car = HCar('1')
-car.set_origin('41775277')
-car.set_destination('41695498')
+car.set_origin(start_node_id)
+car.set_destination(end_node_id)
 print(car.get_od_pair())
+car.set_battery_level(0.005)
 routing_algo = Routing(g)
 # path, path_length = random_walk('41770342', 50)
 # goal_node_id = path[-1]
@@ -190,21 +216,31 @@ bfs_path, bfs_dist = g.bfs('41770342', '41770310')
 plot_path(bfs_path, 'g')
 bfs_path, bfs_dist = routing_algo.bfs('41770342', '41770310')
 plot_path(bfs_path, 'k')
+# dijkstra_path, dijkstra_obj = g.dijkstra(start_node_id, end_node_id, 20000)
+# bfs_path, bfs_dist = g.bfs('41775277', '41695498')
+# plot_path(bfs_path, 'k')
 dijkstra_path, dijkstra_obj = g.dijkstra('41770342', '41770310')
 plot_path(dijkstra_path, 'y')
 dijkstra_path, dijkstra_obj = routing_algo.dijkstra('41770342', '41770310')
 plot_path(dijkstra_path, 'm')
 
-# cdf_path, energy_cost = alg.cdf_dijkstra(car.origin, car.destination, car.battery_level)
-# plot_path(cdf_path, 'm')
+#cdf_path, energy_cost = alg.cdf_dijkstra(car.origin, car.destination, car.battery_level)
+#plot_path(cdf_path, 'm')
 
 # car.set_battery_level(2.0)
 # dijkstra_path, energy_cost = g.cdf_dijkstra(car.origin, car.destination, car.battery_level)
 # plot_path(dijkstra_path, 'm')
 
 
-# bfs_path, bfs_dist = g.bfs('41770395', '41733133')
-# dijkstra_path, dijkstra_obj = g.dijkstra('41770395', '41733133', 20000)
+# bfs_path, bfs_dist = g.bfs(start_node_id, end_node_id)
+# plot_path(bfs_path, 'k')
+# dijkstra_path, dijkstra_obj = g.nx_dijkstra(start_node_id, end_node_id)
+
+# crptc_path, c, d = alg.crptc_1D(car.origin, car.destination, car.battery_level)
+# plot_path(crptc_path, 'm')
+
+# crptc_path, c, d = alg.crptc_2D(car.origin, car.destination, car.battery_level)
+# plot_path(crptc_path, 'b')
 
 
 # if __name__ == "__main__":

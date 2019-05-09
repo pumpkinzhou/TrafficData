@@ -1,9 +1,11 @@
 import matplotlib.collections as mc
+import networkx as nx
 import numpy as np
 from heapq import heapify, heappush, heappop
 from collections import defaultdict
 import pprint
 import matplotlib.pyplot as plt
+
 
 class UnionFind:
 
@@ -30,7 +32,7 @@ class UnionFind:
 
 
 class Node(object):
-    def __init__(self, node_id, LAT ='', LON = ''):
+    def __init__(self, node_id, LAT='', LON=''):
         self.node_id = node_id
         self.LAT = LAT
         self.LON = LON
@@ -39,20 +41,22 @@ class Node(object):
         self.visited = False
 
     def __repr__(self):
-        return '{self.__class__.__name__}'.format(self = self)
+        return '{self.__class__.__name__}'.format(self=self)
 
     def __str__(self):
-        return '{self.__class__.__name__}: node_id = {self.node_id}'.format(self = self)
+        return '{self.__class__.__name__}: node_id = {self.node_id}'.format(self=self)
 
 
 class Edge(object):
-    def __init__(self, edge_id, ref_node, non_ref_node, length):
+    def __init__(self, edge_id, ref_node, non_ref_node, length, edges_connected_node_from, edges_connected_node_to):
         self.edge_id = edge_id
         self.ref_node = ref_node
         self.non_ref_node = non_ref_node
         self.length = length
         self.travel_direction = ''
-        self.traffic_info = defaultdict(dict)     # traffic dictionary {}
+        self.edges_connected_node_from = edges_connected_node_from
+        self.edges_connected_node_to = edges_connected_node_to
+        self.traffic_info = defaultdict(dict)  # traffic dictionary {}
 
     def get_travel_direction(self):
         return self.travel_direction
@@ -64,7 +68,7 @@ class Edge(object):
         return self.traffic_info
 
     def __repr__(self):
-        return '{self.__class__.__name__}'.format(self = self)
+        return '{self.__class__.__name__}'.format(self=self)
 
     def __str__(self):
         return '{self.__class__.__name__}: edge_id = {self.edge_id}'.format(self=self)
@@ -77,6 +81,7 @@ class Graph(object):
         self._node_map = {}  # node_id --> node
         self._edge_map = {}
         self.node_id_to_num = {}  # node_id --> index
+        self.edge_id_to_num = {}  # edge_id --> index
 
     def __repr__(self):
         return '{self.__class__.__name__}'.format(self=self)
@@ -117,33 +122,313 @@ class Graph(object):
             node.visited = False
 
     def insert_edge(self, edge_id, ref_node_id, LAT_from, LON_from,
-                    non_ref_node_id, LAT_to, LON_to, new_edge_length):
+                    non_ref_node_id, LAT_to, LON_to, new_edge_length,
+                    edges_connected_node_from, edges_connected_node_to):
         "Insert a new edge, creating new nodes if necessary"
         if edge_id in self._edge_map:
             print("insert an existing edge!")
             return
         ref_node = self._node_map.get(ref_node_id) or self.insert_node(ref_node_id, LAT_from, LON_from)
         non_ref_node = self._node_map.get(non_ref_node_id) or self.insert_node(non_ref_node_id, LAT_to, LON_to)
-        new_edge = Edge(edge_id, ref_node, non_ref_node, new_edge_length)
+        new_edge = Edge(edge_id, ref_node, non_ref_node, new_edge_length,
+                        edges_connected_node_from, edges_connected_node_to)
         ref_node.edges.append(new_edge)
         non_ref_node.edges.append(new_edge)
         self.edges.append(new_edge)
         self._edge_map[edge_id] = new_edge
 
+    '''
     def find_edge(self, edge_id):
         "Return the node with value node_number or None"
         return self._edge_map.get(edge_id)
+    '''
 
     def get_edge_list(self):
         """Return a list of triples that looks like this:
         (edge_id, ref_node, non_ref_node, length, travel_direction, traffic_info)"""
-        return [(e.edge_id, e.ref_node.node_id, e.non_ref_node.node_id, e.length, e.travel_direction, e.traffic_info) for e in self.edges]
+        return [(e.edge_id, e.ref_node.node_id, e.non_ref_node.node_id, e.length, e.travel_direction, e.traffic_info)
+                for e in self.edges]
+
+    ###############################################################################
+
+    def get_node_id(self, num):
+        "Return the node_id related to node number"
+        for key, value in self.node_id_to_num.items():
+            if num == value:
+                return key
+        return "node_id does not exist"
+
+    def find_edge_by_nodes(self, ref_node_id, non_ref_node_id):
+        "Return the edge related to one ref_node and one node_to"
+        for e in self.edges:
+            if ref_node_id == e.ref_node.node_id and non_ref_node_id == e.non_ref_node.node_id:
+                return e
+        return "edge does not exist"
+
+    def find_edge(self, edge_id):
+        "Return the edge related to edge_id"
+        for key, value in self._edge_map.items():
+            if edge_id == key:
+                return value
+        return "edge_id doesn't exist. (find_edge)"
+
+    def build_edge_id_to_num(self):
+        """
+        Edge numbers are 0 based (starting at 0).
+        """
+        i = 0
+        for edge in self.edges:
+            self.edge_id_to_num[edge.edge_id] = i
+            i += 1
+
+    def find_edge_num(self, edge_id):
+        "Return the edge number related to edge_id"
+        self.build_edge_id_to_num()
+        for key, value in self.edge_id_to_num.items():
+            if edge_id == key:
+                return value
+        # print('edge_id: %s does not exist' % edge_id)
+        return "edge_id doesn't exist. (find_edge_num)"
+
+    def get_edge_id(self, num):
+        "Return the edge_id related to edge number"
+        for key, value in self.edge_id_to_num.items():
+            if num == value:
+                return key
+        return "edge_id does not exist"
+
+    def find_incoming_outgoing_edges(self, edges_connected_node_from, edges_connected_node_to):
+        "find incoming and outgoing edges to one edge"
+        incoming_edges = []
+        outgoing_edges = []
+        incomings = []
+        edges_connected = edges_connected_node_from + edges_connected_node_to
+        if edges_connected:
+            for edge in edges_connected:
+                if edge != '':
+                    # if self.find_edge(edge) != "edge_id doesn't exist. (find_edge)":
+                    if edge[0] == '-':
+                        incomings.append(edge)
+                    else:
+                        outgoing_edges.append(edge)
+        for ins in incomings:
+            ins = ins.replace("-", "")
+            incoming_edges.append(ins)
+
+        return incoming_edges, outgoing_edges
+
+    '''
+    def ref_nonRef_edges_Not_exist_in_graph(self):
+        "find edges which are exist in Ref and NonRef edges, but they are not exist in graph _edge_map"
+        edges_Not_exist_in_graph = []
+        for e in self.edges:
+            edges_connected = []
+            edges_connected_edge_ids = []
+            edges_connected = e.edges_connected_node_from + e.edges_connected_node_to
+
+            for ee in edges_connected:
+                ee = ee.replace("-", "")
+                edges_connected_edge_ids.append(ee)
+
+            for edge_id in edges_connected_edge_ids:
+                if edge_id != '':
+                    if edge_id in self._edge_map:
+                        continue
+                    else:
+                        edges_Not_exist_in_graph.append(edge_id)
+        return edges_Not_exist_in_graph
+
+    def remove_marginal_edges(self):
+        "remove all edges which are exist in Ref and NonRef edges, but they are not exist in graph._edge_map"
+        for e in self.edges:
+            marginal_edges = []
+            for ee in e.edges_connected_node_from:
+                edge_id = ee.replace("-", "")
+                if edge_id in self._edge_map:
+                    continue
+                else:
+                    marginal_edges.append(ee)
+            for eee in marginal_edges:
+                e.edges_connected_node_from.remove(eee)
+
+        for e in self.edges:    
+            marginal_edges = []
+            for ee in e.edges_connected_node_to:
+                edge_id = ee.replace("-", "")
+                if edge_id in self._edge_map:
+                    continue
+                else:
+                    marginal_edges.append(ee)
+            for eee in marginal_edges:
+                e.edges_connected_node_to.remove(eee)
+
+    def add_edges_to_make_graph_closed(self):
+        "first,find edges not connected to other edges in one side (REF or NonREF)"
+        "then, add one edge exactly in the reverse direction of our edge in order to make the graph closed"
+        for e in self.edges:
+            ref_links = []
+            non_ref_links = []
+
+            ref_links = e.edges_connected_node_from
+            non_ref_links = e.edges_connected_node_to
+
+            if len(ref_links) == 0:
+                r = []
+                n = []
+                old_id = e.edge_id
+                new_edge_id = old_id + str(111) # ? is link_id correct in this way ?
+                r.append(str('-') + e.edge_id)
+                new_edge_ref_links = non_ref_links + r
+                n.append(e.edge_id)
+                new_edge_non_ref_links = ref_links + n
+                # insert_edge(edge_id, node_from, node_to, new_edge_length, 
+                #             edges_connected_node_from, edges_connected_node_to)
+                self.insert_edge(new_edge_id, e.node_to.node_id, e.node_to.LAT, e.node_to.LON,
+                                 e.node_from.node_id, e.node_from.LAT, e.node_from.LON, e.length,
+                                 new_edge_ref_links, new_edge_non_ref_links)
+                # add_speed_info
+                new_edge = self.find_edge(new_edge_id)
+                new_edge.speed['AVG_SPEED'] = e.speed['AVG_SPEED']
+                new_edge.speed['FREE_FLOW_SPEED'] = e.speed['FREE_FLOW_SPEED']
+                new_edge.speed['F_WEEKDAY'] = e.speed['T_WEEKDAY']
+                new_edge.speed['T_WEEKDAY'] = e.speed['F_WEEKDAY']
+                new_edge.speed['F_SPEED'] = e.speed['T_SPEED']
+                new_edge.speed['T_SPEED'] = e.speed['F_SPEED']
+
+                # update old edge REF and NONREF links
+                e.edges_connected_node_from.append(str('-') + new_edge_id)
+                e.edges_connected_node_to.append(new_edge_id)
+
+                n = e.node_to
+                nei_edges = n.edges
+                for nei_edge in nei_edges:
+                    if nei_edge.edge_id != e.edge_id and nei_edge.edge_id != new_edge_id:
+                        if nei_edge.node_from.node_id == n.node_id:
+                            nei_edge.edges_connected_node_from.append(new_edge_id)
+                        elif nei_edge.node_to.node_id == n.node_id:
+                            nei_edge.edges_connected_node_to.append(new_edge_id)
+
+
+            if len(non_ref_links) == 0:
+                r = []
+                n = []
+                old_id = e.edge_id
+                new_edge_id = old_id + str(111) # ? is link_id correct in this way ?             
+                r.append(str('-') + e.edge_id)
+                new_edge_ref_links = non_ref_links + r
+                n.append(e.edge_id)
+                new_edge_non_ref_links = ref_links + n                    
+                # insert_edge(edge_id, node_from, node_to, new_edge_length, 
+                #             edges_connected_node_from, edges_connected_node_to)
+                self.insert_edge(new_edge_id, e.node_to.node_id, e.node_to.LAT, e.node_to.LON,
+                                 e.node_from.node_id, e.node_from.LAT, e.node_from.LON, e.length,
+                                 new_edge_ref_links, new_edge_non_ref_links)
+                # add_speed_info
+                new_edge = self.find_edge(new_edge_id)
+                new_edge.speed['AVG_SPEED'] = e.speed['AVG_SPEED']
+                new_edge.speed['FREE_FLOW_SPEED'] = e.speed['FREE_FLOW_SPEED']
+                new_edge.speed['F_WEEKDAY'] = e.speed['T_WEEKDAY']
+                new_edge.speed['T_WEEKDAY'] = e.speed['F_WEEKDAY']
+                new_edge.speed['F_SPEED'] = e.speed['T_SPEED']
+                new_edge.speed['T_SPEED'] = e.speed['F_SPEED']
+
+                # update old edge REF and NONREF links
+                e.edges_connected_node_from.append(str('-') + new_edge_id)
+                e.edges_connected_node_to.append(new_edge_id)
+
+                n = e.node_from
+                nei_edges = n.edges
+                for nei_edge in nei_edges:
+                    if nei_edge.edge_id != e.edge_id and nei_edge.edge_id != new_edge_id:
+                        if nei_edge.node_from.node_id == n.node_id:
+                            nei_edge.edges_connected_node_from.append(str('-') + new_edge_id)
+                        elif nei_edge.node_to.node_id == n.node_id:
+                            nei_edge.edges_connected_node_to.append(str('-') + new_edge_id)
+
+    def make_adjacency_matrix_symmetric(self, pattern_table):
+        "add edges in the inverse direction of existing edge" 
+        "in order to make the adjacency matrix symmetric"
+
+        adjacency_matrix = self.get_adjacency_matrix()
+        max_index = len(adjacency_matrix)
+        existing_edges_indices = []
+
+        for i in range (max_index):
+            for j in range (max_index):
+                if adjacency_matrix[(i,j)] != 0:
+                    existing_edges_indices.append((i,j))
+
+
+        for element in existing_edges_indices:
+            i = element[0]
+            j = element[1]            
+            adjacency_matrix[(j,i)] = adjacency_matrix[(i,j)]
+
+            node_from_id = self.get_node_id(i)
+            node_to_id = self.get_node_id(j)
+            e = self.find_edge_by_nodes(node_from_id, node_to_id)
+
+            ref_links = []
+            non_ref_links = []
+            ref_links = e.edges_connected_node_from
+            non_ref_links = e.edges_connected_node_to
+
+            r = []
+            n = []
+            old_id = e.edge_id
+            new_edge_id = old_id + str(111) # ? is link_id correct in this way ?             
+            r.append(str('-') + e.edge_id)
+            new_edge_ref_links = non_ref_links + r
+            n.append(e.edge_id)
+            new_edge_non_ref_links = ref_links + n                    
+            # insert_edge(edge_id, node_from, node_to, new_edge_length, 
+            #             edges_connected_node_from, edges_connected_node_to)
+            self.insert_edge(new_edge_id, e.node_to.node_id, e.node_to.LAT, e.node_to.LON,
+                             e.node_from.node_id, e.node_from.LAT, e.node_from.LON, e.length,
+                             new_edge_ref_links, new_edge_non_ref_links)
+            # add_speed_info
+            new_edge = self.find_edge(new_edge_id)
+            new_edge.speed['AVG_SPEED'] = e.speed['AVG_SPEED']
+            new_edge.speed['FREE_FLOW_SPEED'] = e.speed['FREE_FLOW_SPEED']
+            new_edge.speed['F_WEEKDAY'] = e.speed['T_WEEKDAY']
+            new_edge.speed['T_WEEKDAY'] = e.speed['F_WEEKDAY']
+            new_edge.speed['F_SPEED'] = e.speed['T_SPEED']
+            new_edge.speed['T_SPEED'] = e.speed['F_SPEED']
+
+            # update old edge REF and NONREF links
+            e.edges_connected_node_from.append(str('-') + new_edge_id)
+            e.edges_connected_node_to.append(new_edge_id)
+
+            # update REF and NONREF links of nei edges to e.node_from 
+            n = e.node_from
+            nei_edges = n.edges
+            for nei_edge in nei_edges:
+                if nei_edge.edge_id != e.edge_id and nei_edge.edge_id != new_edge_id:
+                    if nei_edge.node_from.node_id == n.node_id:
+                        nei_edge.edges_connected_node_from.append(str('-') + new_edge_id)
+                    elif nei_edge.node_to.node_id == n.node_id:
+                        nei_edge.edges_connected_node_to.append(str('-') + new_edge_id)
+
+            # update REF and NONREF links of nei edges to e.node_to
+            n = e.node_to
+            nei_edges = n.edges
+            for nei_edge in nei_edges:
+                if nei_edge.edge_id != e.edge_id and nei_edge.edge_id != new_edge_id:
+                    if nei_edge.node_from.node_id == n.node_id:
+                        nei_edge.edges_connected_node_from.append(new_edge_id)
+                    elif nei_edge.node_to.node_id == n.node_id:
+                        nei_edge.edges_connected_node_to.append(str('-') + new_edge_id)
+
+
+    '''
+
+    ###############################################################################
 
     def get_adjacency_matrix(self):
         """Return a matrix, or 2D list.
         Row numbers represent from nodes,
         column numbers represent to nodes.
-        Store the edge length in each spot,
+        Store the edge values in each spot,
         and a 0 if no edge exists."""
 
         if len(self.node_id_to_num) < len(self.nodes):
@@ -152,18 +437,20 @@ class Graph(object):
         max_index = len(self.node_id_to_num)
         adjacency_matrix = np.zeros((max_index, max_index))
         for edg in self.edges:
-            from_index, to_index = self.node_id_to_num[edg.ref_node.node_id], self.node_id_to_num[edg.non_ref_node.node_id]
+            from_index, to_index = self.node_id_to_num[edg.ref_node.node_id], self.node_id_to_num[edg.node_to.node_id]
             adjacency_matrix[from_index][to_index] = float(edg.length)
         return adjacency_matrix
 
     def get_sparse_adjacency_list(self):
         if len(self.node_id_to_num) < len(self.nodes):
             self.build_node_id_to_num()
-        return [(e.edge_id, self.node_id_to_num[e.ref_node.node_id],
-                 self.node_id_to_num[e.non_ref_node.node_id], float(e.length)) for e in self.edges]
+        if len(self.edge_id_to_num) < len(self.edges):
+            self.build_edge_id_to_num()
+        return [(e.edge_id, self.edge_id_to_num[e.edge_id], self.node_id_to_num[e.ref_node.node_id],
+                 self.node_id_to_num[e.node_to.node_id], float(e.length),
+                 e.edges_connected_node_from, e.edges_connected_node_to) for e in self.edges]
 
     def num_of_subgraphs(self):
-        # direction is not considered when counting the num of subgraphs
         uf = UnionFind()
         for node in self.nodes:
             uf.init_matrix(node.node_id)
@@ -189,8 +476,8 @@ class Graph(object):
                     lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
                                   (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
                 elif e.travel_direction == 'T':
-                    lines.append([(float(e.non_ref_node.LON)+1, float(e.non_ref_node.LAT)+1),
-                                  (float(e.ref_node.LON)+1, float(e.ref_node.LAT)+1)])
+                    lines.append([(float(e.non_ref_node.LON) + 1, float(e.non_ref_node.LAT) + 1),
+                                  (float(e.ref_node.LON) + 1, float(e.ref_node.LAT) + 1)])
                 elif e.travel_direction == 'B':
                     lines.append([(float(e.ref_node.LON), float(e.ref_node.LAT)),
                                   (float(e.non_ref_node.LON), float(e.non_ref_node.LAT))])
@@ -207,12 +494,14 @@ class Graph(object):
                     speed_factor = []
                     if e.travel_direction == 'F':
                         if e.traffic_info['F_SPEED']:
-                            speed_factor.append(e.traffic_info['F_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                            speed_factor.append(
+                                e.traffic_info['F_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
                         else:
                             print(e.edge_id, "F but no F_SPEED traffic info")
                     elif e.travel_direction == 'T':
                         if e.traffic_info['T_SPEED']:
-                            speed_factor.append(e.traffic_info['T_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
+                            speed_factor.append(
+                                e.traffic_info['T_SPEED'][day][time] / e.traffic_info['FREE_FLOW_SPEED'])
                         else:
                             print(e.edge_id, "T but no T_SPEED traffic info")
                     elif e.travel_direction == 'B':
@@ -271,14 +560,13 @@ class Graph(object):
                 v.append(line[1][1] - line[0][1])
 
             ax.quiver(x, y, u, v, scale_units='xy', angles='xy', scale=2, headwidth=7)
-            ax.set_aspect('equal','box')
+            ax.set_aspect('equal', 'box')
 
         plt.show()
         return
 
     def plot_subgraphs(self, n):
-        """ plot: colored n largest disconnected subgraphs (direction is not considered)"""
-        fig, ax = plt.subplots()
+        """ plot: colored n largest disconnected subgraphs"""
         colors = np.concatenate((np.random.rand(3, n), np.ones((1, n))))
 
         subgraph_dict = defaultdict(int)
@@ -301,7 +589,7 @@ class Graph(object):
                 c.append(color_dic[e.ref_node.subgraph])
 
         line_segments = mc.LineCollection(lines, colors=c)
-
+        fig, ax = plt.subplots()
         ax.add_collection(line_segments)
         ax.autoscale()
 
@@ -315,8 +603,8 @@ class Graph(object):
         # plt.scatter(x, y, c = color)
         # plt.show()
 
-    def find_path(self, start_node_id, end_node_id, path = []):
-        """find path use dfs WITHOUT considering traffic direction. The output is a feasible path or None.
+    def find_path(self, start_node_id, end_node_id, path=[]):
+        """find path use dfs. The output is a feasible path or None.
         ARGUMENTS: start_node_id, end_node_id
         RETURN: path ([node_id ....])."""
 
@@ -436,5 +724,27 @@ class Graph(object):
         print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
         return None
 
+    def nx_dijkstra(self, start_node_id, end_node_id):
+        """To be updated"""
+        G = nx.DiGraph(directed=True)
+        arcs = []
+        for e in self.edges:
+            arcs.append(
+                (self.node_id_to_num[e.ref_node.node_id], self.node_id_to_num[e.non_ref_node.node_id], float(e.length)))
+        G.add_weighted_edges_from(arcs)
+        G = nx.dodecahedral_graph()
+        nx.draw(G)
+        # nx.draw_networkx_edges(G, arrows=True)
+        plt.show()
+        # print(nx.dijkstra_path(G, self.node_id_to_num[start_node_id], self.node_id_to_num[end_node_id]))
+        return None
+
+
 if __name__ == "__main__":
     g = Graph()
+
+
+
+
+
+
