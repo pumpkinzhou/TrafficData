@@ -341,12 +341,11 @@ class Graph(object):
         return None
 
     def bfs(self, start_node_id, end_node_id):
-        """BFS iterating through a node's edges withOUT considering traffic directions.
-        The output is the shortest path + length.
+        """BFS iterating through a node's edges. The output is the shortest path + length.
         ARGUMENTS: start_node_id, end_node_id
         RETURN: path (node_ids), path_length."""
         if start_node_id == end_node_id:
-            return  [start_node_id], 0
+            return [start_node_id], 0
 
         node = self.find_node(start_node_id)
         self._clear_visited()
@@ -374,7 +373,7 @@ class Graph(object):
                     queue.append(nei)
                     dist[nei.node_id]['val'] = new_dist
                     dist[nei.node_id]['parent'] = node.node_id
-                elif new_dist < dist[nei.node_id]['val'] :
+                elif new_dist < dist[nei.node_id]['val']:
                     queue.append(nei)
                     dist[nei.node_id]['val'] = new_dist
                     dist[nei.node_id]['parent'] = node.node_id
@@ -390,9 +389,8 @@ class Graph(object):
             print('There is no path from node {} to node {}'.format(start_node_id, end_node_id))
             return None
 
-    def dijkstra(self, start_node_id, end_node_id, K = float('inf')):
-        """dijkstra uses a priority queue withOUT considering traffic directions.
-        The output is the shortest path and path_length.
+    def dijkstra(self, start_node_id, end_node_id, K=float('inf')):
+        """dijkstra uses a priority queue. The output is the shortest path and path_length.
         ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
         RETURN: minimal time path"""
         node = self.find_node(start_node_id)
@@ -403,7 +401,7 @@ class Graph(object):
         dist[start_node_id]['val'] = 0
         dist[start_node_id]['parent'] = -1  # distance to the start, parent
         # max_queue_length = 0
-        sq = 0  #index the node inserted to the priority queue
+        sq = 0  # index the node inserted to the priority queue
         while pq:
             # max_queue_length = max(len(pq), max_queue_length)
             obj, _, node = heappop(pq)
@@ -411,7 +409,7 @@ class Graph(object):
             if sq > K:
                 break
 
-            if node.node_id == end_node_id: # terminal condition
+            if node.node_id == end_node_id:  # terminal condition
                 path = [end_node_id]
                 par = dist[end_node_id]['parent']
                 while par != -1:
@@ -422,19 +420,18 @@ class Graph(object):
 
             for e in node.edges:
                 nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
-                if nei == e.node_to:
-                    new_obj = obj + float(e.length)  # shortest length
 
-                    if nei.node_id not in dist:
-                        dist[nei.node_id]['val'] = new_obj
-                        dist[nei.node_id]['parent']= node.node_id
-                        sq += 1
-                        heappush(pq, (new_obj, sq, nei))
-                    elif new_obj < dist[nei.node_id]['val']:
-                        dist[nei.node_id]['val'] = new_obj
-                        dist[nei.node_id]['parent'] = node.node_id
-                        sq += 1
-                        heappush(pq, (new_obj, sq, nei))
+                new_obj = obj + float(e.length)  # shortest length
+                if nei.node_id not in dist:
+                    dist[nei.node_id]['val'] = new_obj
+                    dist[nei.node_id]['parent'] = node.node_id
+                    sq += 1
+                    heappush(pq, (new_obj, sq, nei))
+                elif new_obj < dist[nei.node_id]['val']:
+                    dist[nei.node_id]['val'] = new_obj
+                    dist[nei.node_id]['parent'] = node.node_id
+                    sq += 1
+                    heappush(pq, (new_obj, sq, nei))
 
         print('There is no path from node {} to node {} within K hops'.format(start_node_id, end_node_id))
         return None

@@ -49,7 +49,8 @@ def add_edges(graph, data):
     # add geographical edge without considering the travel directions
     # travel directions will be added by add_traffic_info.py
     for link_id in data:
-        '''edge_id, node_from_id, LAT_from, LON_from, node_to_id, LAT_to, LON_to, new_edge_length)'''
+        '''edge_id, ref_node_id, LAT_from, LON_from, non_ref_node
+        _id, LAT_to, LON_to, new_edge_length)'''
         link = data[link_id]
         LAT = link['LAT'].split(',')
         LAT[1] = str(int(LAT[0]) + int(LAT[1]))
@@ -133,7 +134,7 @@ def random_walk(s, level):
     for i in range(level):
         cur_node = g.find_node(s)
         for e in cur_node.edges:
-            nei = e.node_from if cur_node.node_id == e.node_to.node_id else e.node_to
+            nei = e.ref_node if cur_node.node_id == e.non_ref_node.node_id else e.non_ref_node
             if nei.node_id not in path:
                 s = nei.node_id
                 path.append(s)
@@ -164,7 +165,7 @@ add_traffic_info(g, TrafficPatternData, TrafficPatternTable)
 ''' graph analysis'''
 direction = True
 traffic_color = True
-g.plot_graph(direction, traffic_color) # Default Parameters: direction=False, speed_color=False, day=1, time=36
+# g.plot_graph(direction, traffic_color) # Default Parameters: direction=False, speed_color=False, day=1, time=36
 # g.plot_subgraphs(g.num_of_subgraphs())
 # print("# of disconnected subgraphs = ", g.num_of_subgraphs())
 # g_adj = g.get_adjacency_matrix()
@@ -179,19 +180,20 @@ car = HCar('1')
 car.set_origin('41775277')
 car.set_destination('41695498')
 print(car.get_od_pair())
-alg = Routing(g)
+routing_algo = Routing(g)
 # path, path_length = random_walk('41770342', 50)
 # goal_node_id = path[-1]
 # g._clear_visited()
 # one_path = g.find_path('41770395', '41771374')
 # plot_path(one_path, 'b')
-bfs_path, bfs_dist = g.bfs('41770395', '41771374')
+bfs_path, bfs_dist = g.bfs('41770342', '41770310')
 plot_path(bfs_path, 'g')
-# dijkstra_path, dijkstra_obj = g.dijkstra('41770395', '41771374', 20000)
-# bfs_path, bfs_dist = g.bfs('41775277', '41695498')
-# plot_path(bfs_path, 'k')
-# dijkstra_path, dijkstra_obj = g.dijkstra('41775277', '41695498')
-# plot_path(dijkstra_path, 'y')
+bfs_path, bfs_dist = routing_algo.bfs('41770342', '41770310')
+plot_path(bfs_path, 'k')
+dijkstra_path, dijkstra_obj = g.dijkstra('41770342', '41770310')
+plot_path(dijkstra_path, 'y')
+dijkstra_path, dijkstra_obj = routing_algo.dijkstra('41770342', '41770310')
+plot_path(dijkstra_path, 'm')
 
 # cdf_path, energy_cost = alg.cdf_dijkstra(car.origin, car.destination, car.battery_level)
 # plot_path(cdf_path, 'm')

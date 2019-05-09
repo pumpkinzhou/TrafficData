@@ -14,14 +14,16 @@ class Routing():
         return '{self.__class__.__name__}'.format(self=self)
 
     def bfs(self, start_node_id, end_node_id):
-        """BFS iterating through a node's edges. The output is the shortest path + length.
+        """BFS iterating through a node's edges.
+        !!!Travel direction is considered!!!
+        The output is the shortest path + length.
         ARGUMENTS: start_node_id, end_node_id
         RETURN: path (node_ids), path_length."""
         if start_node_id == end_node_id:
-            return  [start_node_id], 0
+            return [start_node_id], 0
 
-        node = self.graph.find_node(start_node_id)
         self.graph._clear_visited()
+        node = self.graph.find_node(start_node_id)
         queue = [node]
         dist = defaultdict(dict)
         dist[start_node_id]['val'] = 0
@@ -39,17 +41,26 @@ class Routing():
                     dist[end_node_id]['parent'] = dist[node.node_id]['parent']
 
             for e in node.edges:
-                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
-                new_dist = dist[node.node_id]['val'] + float(e.length)
-                if not nei.visited:
-                    nei.visited = True
-                    queue.append(nei)
-                    dist[nei.node_id]['val'] = new_dist
-                    dist[nei.node_id]['parent'] = node.node_id
-                elif new_dist < dist[nei.node_id]['val'] :
-                    queue.append(nei)
-                    dist[nei.node_id]['val'] = new_dist
-                    dist[nei.node_id]['parent'] = node.node_id
+                if e.get_travel_direction() == 'B':
+                    nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
+                elif e.get_travel_direction() == 'F':
+                    nei = e.non_ref_node if node.node_id == e.ref_node.node_id else None
+                elif e.get_travel_direction() == 'T':
+                    nei = e.ref_node if node.node_id == e.non_ref_node.node_id else None
+                else:
+                    print(e.edge_id, ': travel direction is missing!')
+
+                if nei:
+                    new_dist = dist[node.node_id]['val'] + float(e.length)
+                    if not nei.visited:
+                        nei.visited = True
+                        queue.append(nei)
+                        dist[nei.node_id]['val'] = new_dist
+                        dist[nei.node_id]['parent'] = node.node_id
+                    elif new_dist < dist[nei.node_id]['val']:
+                        queue.append(nei)
+                        dist[nei.node_id]['val'] = new_dist
+                        dist[nei.node_id]['parent'] = node.node_id
 
         if dist[end_node_id]['val'] != float('inf'):
             path = [end_node_id]
@@ -62,8 +73,10 @@ class Routing():
             print('There is no path from node {} to node {}'.format(start_node_id, end_node_id))
             return None
 
-    def dijkstra(self, start_node_id, end_node_id, K = float('inf'), day = 1, time = 36):
-        """dijkstra uses a priority queue. The output is the shortest path and path_length.
+    def dijkstra(self, start_node_id, end_node_id, K=float('inf'), day=1, time=36):
+        """dijkstra uses a priority queue.
+        !!! Travel direction is considered !!!
+        The output is the shortest path and path_length.
         ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
         RETURN: minimal time path"""
         node = self.graph.find_node(start_node_id)
@@ -74,7 +87,7 @@ class Routing():
         dist[start_node_id]['val'] = 0
         dist[start_node_id]['parent'] = -1  # distance to the start, parent
         # max_queue_length = 0
-        sq = 0  #index the node inserted to the priority queue
+        sq = 0  # index the node inserted to the priority queue
         while pq:
             # max_queue_length = max(len(pq), max_queue_length)
             obj, _, node = heappop(pq)
@@ -82,7 +95,7 @@ class Routing():
             if sq > K:
                 break
 
-            if node.node_id == end_node_id: # terminal condition
+            if node.node_id == end_node_id:  # terminal condition
                 path = [end_node_id]
                 par = dist[end_node_id]['parent']
                 while par != -1:
@@ -92,27 +105,38 @@ class Routing():
                 # return path, dist[end_node_id]['val'], max_queue_length
 
             for e in node.edges:
-                nei = e.node_from if node.node_id == e.node_to.node_id else e.node_to
+                if e.get_travel_direction() == 'B':
+                    nei = e.ref_node if node.node_id == e.non_ref_node.node_id else e.non_ref_node
+                elif e.get_travel_direction() == 'F':
+                    nei = e.non_ref_node if node.node_id == e.ref_node.node_id else None
+                elif e.get_travel_direction() == 'T':
+                    nei = e.ref_node if node.node_id == e.non_ref_node.node_id else None
+                else:
+                    print(e.edge_id, ': travel direction is missing!')
+
+                if not nei:
+                    continue
+
                 try:
-                    if nei == e.node_to:
-                        speeds = e.speed['F_SPEED']
+                    if nei == e.non_ref_node:
+                        speeds = e.traffic_info['F_SPEED']
                         if not speeds:
                             continue
                     else:
-                        speeds = e.speed['T_SPEED']
+                        speeds = e.traffic_info['T_SPEED']
                         if not speeds:
                             continue
                     speed = speeds[day][time]
                 except:
-                    speed = e.speed['AVG_SPEED']
-                    print(e.edge_id, e.speed)
+                    speed = e.traffic_info['AVG_SPEED']
+                    print(e.edge_id, e.traffic_info)
                 # new_obj = dist[node.node_id]['val'] + float(e.length)  # shortest length
 
-                new_obj = obj + float(e.length) / (speed * 1000 / 3600)   #minimal time unit: seconds
+                new_obj = obj + float(e.length) / (speed * 1000 / 3600)  # minimal time unit: seconds
 
                 if nei.node_id not in dist:
                     dist[nei.node_id]['val'] = new_obj
-                    dist[nei.node_id]['parent']= node.node_id
+                    dist[nei.node_id]['parent'] = node.node_id
                     sq += 1
                     heappush(pq, (new_obj, sq, nei))
                 elif new_obj < dist[nei.node_id]['val']:
@@ -125,7 +149,9 @@ class Routing():
         return None
 
     def cdf_dijkstra(self, start_node_id, end_node_id, battery_level, day=1, time=36):
-        """dijkstra uses a priority queue. The output is the shortest path and path_length.
+        """dijkstra uses a priority queue.
+        !!! Alert: TO be updated with travel direction info
+        The output is the shortest path and path_length.
         ARGUMENTS: start_node_id, end_node_id, K is the maximum number of nodes we want to search (approximate)
         RETURN: path with minimal energy consumption using CDF mode"""
 
