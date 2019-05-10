@@ -33,5 +33,5 @@ Drivers who commute everyday has experienced the misery of rush hours. Our proje
 1. read data from json
 2. build graph
 3. add traffic info
-4. graph analysis
-5. path finding
+4. analyze graph 
+5. find path/route
