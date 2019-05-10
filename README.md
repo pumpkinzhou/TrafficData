@@ -3,35 +3,32 @@ Drivers who commute everyday has experienced the misery of rush hours. Our proje
 
 ## Software Architecture
 ### Class
-#### car.py: 
-1. Car(): tradictional gas car 
-2. ECar(): eletrical car
-3. HCar(): hybrid car powered by gas and battery
-#### graph.py
-1. Node()
-
-2. Edge()
-
-3. Graph() 
+#### 1. car.py 
+   * Car(): tradictional gas car 
+   * ECar(): eletrical car
+   * HCar(): hybrid car powered by gas and battery
+#### 2. graph.py
+* Node()
+* Edge()
+* Graph() 
    * num_of_subgraphs
    * search algorithms on geographic graph without travel directions: 
       * dfs(find_path)
       * bfs
       * dijkstra
-
-4. UnionFind() 
+* UnionFind() 
    * find the num_of_subgraphs
-#### routing.py
-1. Routing()
+#### 3. routing.py
+* Routing()
    * search algorithms with travel directions: 
       * bfs
       * dijkstra
       * cdf_dijkstra: charge depleting first, dijkstra with energy cost (To be updated)
       * crptc: combined routing and power-train control, MILP solved by Gurobi (To be updated)
 #### TrafficData.py (main file)
-##### Workflow
-1. read data from json
-2. build graph
-3. add traffic info
-4. analyze graph 
-5. find path/route
+* Workflow
+   * read data from json
+   * build graph
+   * add traffic info
+   * analyze graph 
+   * find path/route
