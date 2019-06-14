@@ -150,15 +150,15 @@ g = Graph()
 # data = read_json('TrafficData\\data\\BostonData\\NetworkData.json')     # load main data setv
 # add_edges(g, data)
 # add data from different zoom levels (zoom12 matters most)
-data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms2\\NetworkData_zoom*.json')
+data_files = glob.glob('data\\BostonData_Diff_Zooms2\\NetworkData_zoom*.json')
 for f in data_files:
     add_edges(g, read_json(f))
 # load traffic pattern data
-TrafficPatternData = read_json('TrafficData\\data\\BostonData_Diff_Zooms2\\TrafficPatternData_zoom9.json')
-data_files = glob.glob('TrafficData\\data\\BostonData_Diff_Zooms2\\TrafficPatternData_zoom*.json')
+TrafficPatternData = read_json('data\\BostonData_Diff_Zooms2\\TrafficPatternData_zoom9.json')
+data_files = glob.glob('data\\BostonData_Diff_Zooms2\\TrafficPatternData_zoom*.json')
 for f in data_files:
     TrafficPatternData.update(read_json(f))
-TrafficPatternTable = read_json3('TrafficData\\data\\BostonData\\traffic_pattern_table2.json')
+TrafficPatternTable = read_json3('data\\BostonData\\traffic_pattern_table2.json')
 # add speed info to edges
 add_traffic_info(g, TrafficPatternData, TrafficPatternTable)
 
