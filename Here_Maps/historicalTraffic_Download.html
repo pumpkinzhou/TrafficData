@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Traffic Flow and Jam Factor</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+
+        <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" type="text/css" href="https://js.cit.api.here.com/v3/3.0/mapsjs-ui.css">
+
+        <script src="https://qa.rd.account.here.com/js/sdk/sso.min.js"></script>
+        <!--
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-core.js"></script>
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-service.js"></script>
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-clustering.js"></script>
+<script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.1/mapsjs-data.js"></script>
+-->
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-core.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-service.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-mapevents.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-pano.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-ui.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-clustering.js"></script>
+        <script type="text/javascript" charset="UTF-8" src="https://js.cit.api.here.com/v3/3.0/mapsjs-data.js"></script>
+
+
+
+
+        <meta name="csrf-token" content="YZqjYY5AoVvEa11f2Oph8T7F/3TV4eXyhmeNGaaVA8pEKyV6GauelevYvqiH64JtoCqWj54WD5DqJ4k6dYllHQ==" />
+
+
+
+    </head>
+    <body>
+
+
+
+
+        <div class="ctrl-panel">
+            <span id="toggle-ctrl-panel" class="glyphicon glyphicon-menu-left"></span>
+            <p>Using this website, you can download the real time traffic of the area displayed in the map, as well as the adjacency matrix of the selected area. Simply move the map to the desired area, and push the "find Traffic" button. </p>
+            <p>Keep in mind that the real time traffic only covers the links shown over the traffic layer on the map (green, red, and yellow links). For the rest of the links, the speed is set to the speed limit of the road.</p>
+
+            <!--
+<h5>Coordinates</h5>
+<div class="form-group">
+<input type='text' class="form-control input-wide" id='coord_input' value='42.360081,-71.058884' />
+
+</div>
+-->
+
+            <input type="submit" id="trafficButton" class="btn btn-default btn-sm" value="Find Traffic"/>
+
+
+            <div id="statusText" style="color:red"></div>
+
+            <hr class="separator">
+
+            <!--
+Address: <br/>
+<input style='width:100%;' type="text" name="addressText" id="addressText" readonly>
+-->
+
+            <a id="checkOn" href="" style="display:none" target="_blank" >Check on here.com</a>
+            <a id="downloadAnchorElem" style="display:none"></a>
+
+
+            <div id="mapContainer" style="width: 100%; height: 750px;"></div>
+
+
+            <script type="text/javascript">
+                /*
+    (C) HERE 2016
+    */
+
+                var app_id = "gRwBIEeKExwyHFG1NvxW";
+                var app_code = "FF5kaWv1BtZ3YFXpE7iw1A";
+
+
+
+                // Check whether the environment should use hi-res maps
+                var hidpi = ('devicePixelRatio' in window && devicePixelRatio > 1);
+
+                // check if the site was loaded via secure connection
+                var secure = (location.protocol === 'https:') ? true : false;
+
+                // Create a platform object to communicate with the HERE REST APIs
+                var platform = new H.service.Platform({
+                    useCIT: true,
+                    app_id: app_id,
+                    app_code: app_code,
+                    useHTTPS: secure
+                }),
+                    maptypes = platform.createDefaultLayers(hidpi ? 512 : 256, hidpi ? 320 : null),
+                    group = new H.map.Group(),
+                    markerGroup = new H.map.Group(),
+                    geocoder = platform.getGeocodingService();
+
+                // Instantiate a map in the 'map' div, set the base map to normal
+                map = new H.Map(document.getElementById('mapContainer'), maptypes.normal.map, {
+                    center: {lat:42.360081,lng:-71.058884},
+                    zoom: 14,
+                    pixelRatio: hidpi ? 2 : 1
+
+                });
+
+                var pixelRatio = window.devicePixelRatio || 1;
+                var defaultLayers = platform.createDefaultLayers({
+                    tileSize: pixelRatio === 1 ? 256 : 512,
+                    ppi: pixelRatio === 1 ? undefined : 320
+                });
+                map.setBaseLayer(defaultLayers.normal.traffic);
+                map.addLayer(defaultLayers.incidents);
+
+
+
+
+                // to store the returned locations
+                var group;
+
+                // Enable the map event system
+                var mapevents = new H.mapevents.MapEvents(map);
+
+                // Enable map interaction (pan, zoom, pinch-to-zoom)
+                var behavior = new H.mapevents.Behavior(mapevents);
+
+                // Enable the default UI
+                var ui = H.ui.UI.createDefault(map, maptypes);
+
+                // add long click in map event listener
+                map.addEventListener('longpress', handleLongClickInMap);
+
+                map.addObject(markerGroup);
+
+
+
+                // if the window is resized, we need to resize the viewport
+                window.addEventListener('resize', function() { map.getViewPort().resize(); });
+
+
+                var pointA;
+                var startMarker = null;
+                var coordInput = document.getElementById("coord_input");
+                var bErrorHappened = false;
+
+                var bLongClickUseForcoordInput = true; // for long click in map we toggle coordInput
+                var level, pdeLayer, tileY, tileX;
+                var listTMCs= new Object();
+                var TMC;
+                var linkIDInfo;
+                var TMCCode = [];
+                var latlngLocation;
+
+                var flowItems = [];
+                var flowItemsLink= []
+                var tmcCodesToCheck = [];
+
+                var marker,currentBubble;
+                var indexPCValue;
+
+                var pdeLayerRoadLink;
+                var listAdjacencyMatrix = new Object();
+                var listSpeedLimits = new Object();
+                var listTrafficFlowData = new Object();
+                var listTrafficPattern = new Object();
+                var currentLinkID;
+                // boolen variables to check if the call backs to the API has been processed
+                var isAdjacencyProceessed = 0 ;
+                var isListTMCProcessed =0 ;
+                var islistSpeedLimitProcessed = 0 ;
+                var isTrafficProcessed = 0 ;
+                var numberOfTiles = 0 ;
+                var numberOfLoops = 0 ;
+                var isTrafficPatternProceessed = false ;
+
+
+
+                /********************************************************
+                coordInput selection via LongClick in map
+                ********************************************************/
+                function handleLongClickInMap(currentEvent)
+                {
+                    var lastClickedPos = map.screenToGeo(currentEvent.currentPointer.viewportX, currentEvent.currentPointer.viewportY);
+
+                    if(bLongClickUseForcoordInput)
+                    {
+                        var line1 = "" + lastClickedPos.lat + "," + lastClickedPos.lng;
+                        coordInput.value = line1;
+
+                    }
+
+                }
+
+                /************************************
+                Start Traffic
+                ************************************/
+
+                var startTrafficCalculation = function ()
+                {
+                    numberOfLoops = 0;
+                    numberOfTiles = 0;
+                    isAdjacencyProceessed = 0;
+                    isListTMCProcessed = 0;
+                    islistSpeedLimitProcessed = 0;
+                    isTrafficProcessed = 0;
+                    isTrafficPatternProceessed = false;
+                    //                    latlngLocation = coordInput.value;
+                    latlngLocation = String(map.getViewBounds().getCenter().lat) + "," + String(map.getViewBounds().getCenter().lng);
+                    //                    reverseGeocoding(coordInput.value, true);
+                    reverseGeocoding(latlngLocation, true);
+
+
+
+                }
+                trafficButton.onclick = startTrafficCalculation;
+
+
+
+
+                /************************************
+                Geocode start/destination
+                ************************************/
+
+                function reverseGeocoding(rgLocation){
+
+                    var reverseGeocodingParameters = {
+                        pos: rgLocation + "," + 500,
+                        mode: 'trackPosition',
+                        maxResults: 1,
+                        addressattributes: 'all',
+                        locationattributes: 'all',
+                        responseattributes: 'all',
+                        //minResults: 1,
+                        //additionaldata: 'SuppressStreetType,Unnamed',
+                        gen:9
+
+                    };
+
+                    // Call the geocode method with the geocoding parameters,
+                    // the callback and an error callback function (called if a communication error occurs):
+                    geocoder.reverseGeocode(
+                        reverseGeocodingParameters,
+                        onSuccess,
+                        function(e) {
+                            alert(e);
+                        }
+                    );
+                }
+
+                // Define a callback function to process the response:
+                function onSuccess(result) {
+                    document.getElementById("statusText").innerHTML = "Loading...";
+                    //                    var location = result.Response.View[0].Result[0];
+                    //                    console.log(location);
+                    //                    var latitude = location.Location.NavigationPosition[0].Latitude;
+                    //                    var longitude = location.Location.NavigationPosition[0].Longitude;
+                    //
+                    //
+                    //                    //get LinkId from reversegeocoder response
+                    //                    linkIDInfo = location.Location.MapReference.ReferenceId;
+                    //                    var fcValue = location.Location.LinkInfo.FunctionalClass;
+                    //                    var level=map.getZoom();
+                    var level = 13;
+                    var fcLevel = level-8;
+                    var tileSize = 180 / (Math.pow(2,level));
+                    var tileY_Top = Math.floor((map.getViewBounds().getTop() + 90) / tileSize);
+                    var tileY_Bottom = Math.floor((map.getViewBounds().getBottom() + 90) / tileSize);
+                    var tileX_Left = Math.floor((map.getViewBounds().getLeft() + 180) / tileSize);
+                    var tileX_Right = Math.floor((map.getViewBounds().getRight() + 180) / tileSize);
+
+                    // PDE layer to get TMC code
+                    var pdeLayerTrafficPattern = 'TRAFFIC_PATTERN_FC' + fcLevel;
+                    // PDE Layer to get link information
+                    var pdeLayerRoadLink = 'LINK_FC' + fcLevel;
+                    // PDE Layer to get link speed limits
+                    var pdeLayerSpeedLimit = 'SPEED_LIMITS_FC' + fcLevel;
+
+                    numberOfTiles=(tileY_Top-tileY_Bottom+1)*(tileX_Right-tileX_Left+1);
+                    //finding the traffic and link properties for all the tiles that are displayed on the screen
+                    var tileXYs = [];
+                    for (var tileY=tileY_Bottom;tileY<=tileY_Top;tileY++){
+                        for(var tileX=tileX_Left;tileX<=tileX_Right;tileX++){
+                            //                            numberOfLoops++;
+                            //                            getPDETrafficCorridorSearch(level,pdeLayerTrafficPattern,pdeLayerRoadLink,pdeLayerSpeedLimit, tileY, tileX);
+                            tileXYs.push (tileX, tileY);
+                            numberOfLoops++;
+                        }
+                    }
+                    var joinedTilesXYs = tileXYs.join(',');
+                    //                    if (numberOfLoops == numberOfTiles){
+                    getPDETrafficCorridorSearch(level, pdeLayerTrafficPattern, pdeLayerRoadLink, pdeLayerSpeedLimit, joinedTilesXYs);
+                    //                    }
+
+
+
+
+                }
+
+                function getPDETrafficCorridorSearch(plevel, ppdeLayerTrafficPattern,ppdeLayerRoadLink,ppdeLayerSpeedLimit, ptileXY){
+
+                    //requesting information to construct adjacency matrix
+                    var url = ['https://pde.cit.api.here.com/1/tiles.json?',
+                               '&app_id=',
+                               app_id,
+                               '&app_code=',
+                               app_code,
+                               '&layer=',
+                               ppdeLayerRoadLink,
+                               '&level=',
+                               plevel,
+                               '&tilexy=',
+                               ptileXY,
+                               "&callback=processRoadLinkNetworkInfo" //this is the call back function
+                              ].join('');
+                    // Send request.
+                    script = document.createElement("script");
+                    script.src = url;
+                    document.body.appendChild(script);
+
+
+
+                    //requesting the information get traffic patterns on all the links (average speeds in different times)
+                    var url = ['https://pde.cit.api.here.com/1/tiles.json?',
+                               '&app_id=',
+                               app_id,
+                               '&app_code=',
+                               app_code,
+                               '&layer=',
+                               ppdeLayerTrafficPattern,
+                               '&level=',
+                               plevel,
+                               '&tilexy=',
+                               ptileXY,
+                               "&callback=processTrafficPattern" //this is the call back function
+                              ].join('');
+                    // Send request.
+                    script = document.createElement("script");
+                    script.src = url;
+                    document.body.appendChild(script);
+
+
+
+                }
+
+
+
+                // callback for static layer from PDE for the road link network info (adjacency matrix)
+                function processRoadLinkNetworkInfo(resp){
+                    if(resp == null || resp.Tiles == null|| resp.Tiles == "[]" || resp.Tiles == "[]" || resp.Tiles == ""){
+                        console.log("Oops! Something went wrong.");
+                        document.getElementById("noTrafficText").innerHTML = "Limk information is not available at this link!";
+                        return;
+                    }
+                    // populate
+                    var listAdjacencyMatrixTemp = new Object();
+                    var tiles = resp.Tiles;
+
+                    for(var i = 0; i < tiles.length; i++){
+                        for(var j = 0; j < tiles[i].Rows.length; j++){
+                            listAdjacencyMatrixTemp[tiles[i].Rows[j].LINK_ID] = tiles[i].Rows[j];
+                        }
+                    }
+
+                    listAdjacencyMatrix = Object.assign(listAdjacencyMatrix,listAdjacencyMatrixTemp);
+                    delete listAdjacencyMatrixTemp;
+                    isAdjacencyProceessed = true;
+                    if (isAdjacencyProceessed == true && isTrafficPatternProceessed)
+                    {
+                        dataToFile();
+                    }
+
+                }
+
+
+                // callback for static layer from PDE for the traffic patterns
+                function processTrafficPattern(resp){
+                    if(resp == null || resp.Tiles == null|| resp.Tiles == "[]" || resp.Tiles == "[]" || resp.Tiles == ""){
+                        console.log("Oops! Something went wrong.");
+                        document.getElementById("noTrafficText").innerHTML = "Limk information is not available at this link!";
+                        return;
+                    }
+                    // populate
+                    var listTrafficPatternTemp = new Object();
+                    var tiles = resp.Tiles;
+                    for(var i = 0; i < tiles.length; i++){
+                        for(var j = 0; j < tiles[i].Rows.length; j++){
+                            listTrafficPatternTemp[tiles[i].Rows[j].LINK_ID] = tiles[i].Rows[j];
+                        }
+                    }
+                    listTrafficPattern=Object.assign(listTrafficPattern,listTrafficPatternTemp);
+                    delete listTrafficPatternTemp;
+                    isTrafficPatternProceessed = true;
+                    if (isAdjacencyProceessed == true && isTrafficPatternProceessed)
+                    {
+                        dataToFile();
+                    }
+
+                }
+
+
+
+
+
+
+
+                function pushTrafficPatternToAdjacency(pushtrafficcallback,callback){
+
+                    cnt=0;
+                    for(var i=0;i<Object.keys(listAdjacencyMatrix).length;i++){
+
+                        listAdjacencyMatrix[Object.keys(listAdjacencyMatrix)[i]].trafficPattern=
+                            listTrafficPattern[Object.keys(listAdjacencyMatrix)[i]];
+                        cnt ++;
+                    }
+
+                    if(cnt==(Object.keys(listAdjacencyMatrix).length-1)){
+                        document.getElementById("statusText").innerHTML = "File is ready to download";
+                        var isChrome = !!window.chrome && !!window.chrome.webstore;
+                        var isFirefox = typeof InstallTrigger !== 'undefined';
+                        if (isChrome){
+
+                            //                        var JSONdata = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listAdjacencyMatrix));
+                            var JSONdataNetwork =JSON.stringify(listAdjacencyMatrix);
+                            download(JSONdataNetwork, 'NetworkData.json', 'text/json');
+                            var JSONTrafficdata =JSON.stringify(listTrafficPattern);
+                            download(JSONTrafficdata, 'TrafficPatternData.json', 'text/json');
+
+
+                        }
+                        else{
+
+
+
+                            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listAdjacencyMatrix));
+                            //                            var dataStr = JSON.stringify(listAdjacencyMatrix);
+                            var dlAnchorElem = document.getElementById('downloadAnchorElem');
+                            dlAnchorElem.setAttribute("href",     dataStr     );
+                            dlAnchorElem.setAttribute("download", "NetworkTraffic.json");
+                            dlAnchorElem.click();
+
+                        }
+                    }
+                }
+
+
+
+
+                function download(text, name, type)
+                {
+                    var file = new Blob([text], {type: type});
+                    var isIE = /*@cc_on!@*/false || !!document.documentMode;
+                    if (isIE)
+                    {
+                        window.navigator.msSaveOrOpenBlob(file, name);
+                    }
+                    else
+                    {
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(file);
+                        a.download = name;
+                        a.click();
+                    }
+                }
+
+                function dataToFile()
+                {
+                    document.getElementById("statusText").innerHTML = "File is ready to download";
+                    var isChrome = !!window.chrome && !!window.chrome.webstore;
+                    var isFirefox = typeof InstallTrigger !== 'undefined';
+                    if (isChrome){
+
+                        //                        var JSONdata = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listAdjacencyMatrix));
+                        var JSONdataNetwork =JSON.stringify(listAdjacencyMatrix);
+                        download(JSONdataNetwork, 'NetworkData.json', 'text/json');
+                        var JSONTrafficdata =JSON.stringify(listTrafficPattern);
+                        download(JSONTrafficdata, 'TrafficPatternData.json', 'text/json');
+
+
+                    }
+                    else{
+
+
+
+                        var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listAdjacencyMatrix));
+                        //                            var dataStr = JSON.stringify(listAdjacencyMatrix);
+                        var dlAnchorElem = document.getElementById('downloadAnchorElem');
+                        dlAnchorElem.setAttribute("href",     dataStr     );
+                        dlAnchorElem.setAttribute("download", "NetworkTraffic.json");
+                        dlAnchorElem.click();
+
+                    }
+                }
+
+
+            </script>
+        </div>
+        <div id="frame-container"/>
+    </body>
+</html>
